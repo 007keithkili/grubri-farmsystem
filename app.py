@@ -4,6 +4,13 @@ from flask_login import LoginManager, login_required, current_user, login_user, 
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
 
+# --- DB helper import (moved to db_helper.py) ---
+# Use DATABASE_URL env var in production; fallback to a local sqlite file for dev.
+try:
+    from db_helper import engine, get_db_connection
+except Exception as _e:
+    # If db_helper import fails, re-raise so we see the error early
+    raise
 import sqlite3
 from pathlib import Path
 import io
@@ -84,12 +91,6 @@ def load_user(user_id):
         row = cursor.fetchone()
         conn.close()
         if row:
-# --- DB helper import (using db_helper.py) ---
-try:
-    from db_helper import engine, get_db_connection
-except Exception:
-    # Fallback in case db_helper is missing or fails; re-raise for visibility
-    raise
 
             cur.execute("ALTER TABLE task ADD COLUMN priority TEXT DEFAULT 'Normal'")
             changed = True
@@ -1741,4 +1742,5 @@ def init_database():
 if __name__ == '__main__':
     init_database()
     app.run(debug=True)
+
 
