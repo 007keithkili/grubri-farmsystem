@@ -1,4 +1,5 @@
-﻿# app.py - COMPLETE FIXED VERSION (replace your current file with this)
+﻿from db_helpers import ensure_task_columns
+# app.py - COMPLETE FIXED VERSION (replace your current file with this)
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, make_response
 from flask_login import LoginManager, login_required, current_user, login_user, logout_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -131,9 +132,186 @@ def ensure_reports_table(conn):
     except Exception as e:
         # Log but do not interrupt initialization
         print("Warning creating reports table:", e)
-
-
 def init_database():
+    """
+    Initialize the database in a way that works whether get_db_connection()
+    returns a DB-API connection (sqlite3/psycopg2) or you have a SQLAlchemy engine.
+    This function is idempotent (safe to run multiple times).
+    """
+    # Import lazily to avoid circular import issues if app.py already imports db_helper
+    try:
+        from db_helper import get_db_connection, engine as sa_engine
+    except Exception:
+        # If engine import fails, try to still get a DB-API connection
+        from db_helper import get_db_connection
+        sa_engine = None
+
+    from datetime import datetime
+    import traceback
+
+    create_statements = [
+        """
+        CREATE TABLE IF NOT EXISTS user (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS staff (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            department TEXT,
+            email TEXT,
+            phone TEXT NOT NULL,
+            address TEXT,
+            dob DATE,
+            date_employed DATE,
+            status TEXT DEFAULT 'Active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS task (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            assigned_to TEXT,
+            status TEXT DEFAULT 'Pending',
+            priority TEXT DEFAULT 'Normal',
+            due_date DATE,
+            category TEXT DEFAULT 'general',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS financial (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_type TEXT,
+            amount REAL,
+            category TEXT,
+            description TEXT,
+            transaction_date DATE,
+            reference TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_name TEXT,
+            report_type TEXT,
+            format TEXT,
+            filepath TEXT,
+            period_start DATE,
+            period_end DATE,
+            generated_by TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    ]
+
+    default_users = [
+        ('admin', 'admin@dlfarm.com', 'admin123', 'admin'),
+        ('manager', 'manager@dlfarm.com', 'manager123', 'manager'),
+        ('accountant', 'accountant@dlfarm.com', 'accountant123', 'accountant'),
+    ]
+
+    sample_staff = [
+        ('James', 'Kipianui Rotich', 'Farm Manager', 'Management', 'james@dlfarm.com', '0721368651', 'Eldoret', '1985-03-15', '2020-01-10'),
+        ('Michael', 'Kemboi', 'Mechanic', 'Maintenance', 'michael@dlfarm.com', '0720977192', 'Eldoret', '1990-07-22', '2021-03-05'),
+        ('Nicholas', 'Yego', 'Accountant', 'Finance', 'nicholas@dlfarm.com', '0712441667', 'Eldoret', '1988-11-30', '2019-08-15'),
+    ]
+
+    def _run_dbapi_statements(conn):
+        try:
+            cur = conn.cursor()
+            for s in create_statements:
+                cur.execute(s)
+            conn.commit()
+
+            cur.execute('SELECT COUNT(*) FROM user')
+            if (cur.fetchone() or [0])[0] == 0:
+                for u, e, p, r in default_users:
+                    cur.execute('INSERT OR IGNORE INTO user (username, email, password, role) VALUES (?, ?, ?, ?)', (u, e, p, r))
+                conn.commit()
+
+            cur.execute('SELECT COUNT(*) FROM staff')
+            if (cur.fetchone() or [0])[0] == 0:
+                for fn, ln, pos, dept, email, phone, addr, dob, emp_date in sample_staff:
+                    cur.execute('INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                (fn, ln, pos, dept, email, phone, addr, dob, emp_date))
+                conn.commit()
+            cur.close()
+        except Exception:
+            traceback.print_exc()
+            raise
+
+    def _run_sqlalchemy_statements(sa_engine_local):
+        from sqlalchemy import text
+        try:
+            with sa_engine_local.begin() as conn:
+                for s in create_statements:
+                    conn.execute(text(s))
+
+                cnt = conn.execute(text("SELECT COUNT(*) FROM user")).scalar() or 0
+                if cnt == 0:
+                    for u, e, p, r in default_users:
+                        conn.execute(text("INSERT INTO user (username, email, password, role) VALUES (:u, :e, :p, :r)"),
+                                     {"u": u, "e": e, "p": p, "r": r})
+
+                cnt2 = conn.execute(text("SELECT COUNT(*) FROM staff")).scalar() or 0
+                if cnt2 == 0:
+                    for fn, ln, pos, dept, email, phone, addr, dob, emp_date in sample_staff:
+                        conn.execute(text(
+                            "INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed) "
+                            "VALUES (:fn, :ln, :pos, :dept, :email, :phone, :addr, :dob, :emp_date)"
+                        ), {"fn": fn, "ln": ln, "pos": pos, "dept": dept, "email": email, "phone": phone, "addr": addr, "dob": dob, "emp_date": emp_date})
+        except Exception:
+            traceback.print_exc()
+            raise
+
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        print("Error obtaining DB connection in init_database():", e)
+        traceback.print_exc()
+        raise
+
+    try:
+        if hasattr(conn, "cursor"):
+            _run_dbapi_statements(conn)
+            try:
+                conn.close()
+            except Exception:
+                pass
+        else:
+            if sa_engine is None:
+                try:
+                    from sqlalchemy import text
+                    if hasattr(conn, "begin"):
+                        _run_sqlalchemy_statements(conn)
+                    else:
+                        raise RuntimeError("No DB-API cursor and no SQLAlchemy engine available.")
+                except Exception:
+                    traceback.print_exc()
+                    raise
+            else:
+                _run_sqlalchemy_statements(sa_engine)
+    finally:
+        try:
+            if hasattr(conn, "close"):
+                conn.close()
+        except Exception:
+            pass
+
+    print("✓ Database initialized")
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -1660,6 +1838,197 @@ def delete_task_ajax():
         return jsonify({'success': False, 'message': str(e)})
 
 
+def init_database():
+    """
+    Initialize the application's database using get_db_connection() that
+    returns a DB-API connection (sqlite3 or psycopg2-like). This function:
+      - Creates the core tables if they don't exist.
+      - Inserts default users and sample staff if none exist.
+      - Ensures 'task' table has expected columns (adds missing columns via ALTER).
+    """
+    import traceback
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        raise RuntimeError(f"init_database: get_db_connection() failed: {e}")
+
+    if not hasattr(conn, "cursor"):
+        raise RuntimeError("init_database: get_db_connection() must return a DB-API connection with .cursor()")
+
+    try:
+        cur = conn.cursor()
+
+        # create tables (idempotent)
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS user (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS staff (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                position TEXT NOT NULL,
+                department TEXT,
+                email TEXT,
+                phone TEXT NOT NULL,
+                address TEXT,
+                dob DATE,
+                date_employed DATE,
+                status TEXT DEFAULT 'Active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS task (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                assigned_to TEXT,
+                status TEXT DEFAULT 'Pending',
+                priority TEXT DEFAULT 'Normal',
+                due_date DATE,
+                category TEXT DEFAULT 'general',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS financial (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_type TEXT,
+                amount REAL,
+                category TEXT,
+                description TEXT,
+                transaction_date DATE,
+                reference TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_name TEXT,
+                report_type TEXT,
+                format TEXT,
+                filepath TEXT,
+                period_start DATE,
+                period_end DATE,
+                generated_by TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # default users
+        try:
+            row = cur.execute('SELECT COUNT(*) FROM user').fetchone()
+            user_count = row[0] if row else 0
+        except Exception:
+            user_count = 0
+
+        try:
+            from werkzeug.security import generate_password_hash
+        except Exception:
+            def generate_password_hash(p): return p
+
+        if user_count == 0:
+            defaults = [
+                ('admin', 'admin@dlfarm.com', generate_password_hash('admin123'), 'admin'),
+                ('manager', 'manager@dlfarm.com', generate_password_hash('manager123'), 'manager'),
+                ('accountant', 'accountant@dlfarm.com', generate_password_hash('accountant123'), 'accountant'),
+            ]
+            for u, e, p, r in defaults:
+                try:
+                    cur.execute('INSERT OR IGNORE INTO user (username, email, password, role) VALUES (?, ?, ?, ?)', (u, e, p, r))
+                except Exception:
+                    pass
+
+        # sample staff
+        try:
+            row = cur.execute('SELECT COUNT(*) FROM staff').fetchone()
+            staff_count = row[0] if row else 0
+        except Exception:
+            staff_count = 0
+
+        if staff_count == 0:
+            sample_staff = [
+                ('James', 'Kipianui Rotich', 'Farm Manager', 'Management', 'james@dlfarm.com', '0721368651', 'Eldoret', '1985-03-15', '2020-01-10'),
+                ('Michael', 'Kemboi', 'Mechanic', 'Maintenance', 'michael@dlfarm.com', '0720977192', 'Eldoret', '1990-07-22', '2021-03-05'),
+                ('Nicholas', 'Yego', 'Accountant', 'Finance', 'nicholas@dlfarm.com', '0712441667', 'Eldoret', '1988-11-30', '2019-08-15'),
+            ]
+            for fn, ln, pos, dept, email, phone, addr, dob, emp_date in sample_staff:
+                try:
+                    cur.execute('INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                (fn, ln, pos, dept, email, phone, addr, dob, emp_date))
+                except Exception:
+                    pass
+
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+        # ensure task columns exist
+        try:
+            cur.execute("PRAGMA table_info('task')")
+            rows = cur.fetchall()
+            existing_cols = set()
+            for r in rows:
+                try:
+                    name = r['name']
+                except Exception:
+                    name = r[1] if len(r) > 1 else None
+                if name:
+                    existing_cols.add(name)
+        except Exception:
+            existing_cols = set()
+            try:
+                cur.execute("SELECT * FROM task LIMIT 0")
+                if cur.description:
+                    existing_cols = set([d[0] for d in cur.description])
+            except Exception:
+                existing_cols = set()
+
+        cols_to_add = {
+            'category': "TEXT DEFAULT 'general'",
+            'priority': "TEXT DEFAULT 'Normal'",
+            'assigned_to': "TEXT",
+            'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        }
+
+        for col, dtype in cols_to_add.items():
+            if col not in existing_cols:
+                try:
+                    cur.execute(f"ALTER TABLE task ADD COLUMN {col} {dtype}")
+                except Exception:
+                    pass
+
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+    except Exception:
+        print("init_database: exception during DB init:")
+        traceback.print_exc()
+        raise
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    print("✓ Database initialized")
 if __name__ == '__main__':
     print("=" * 60); print("DL FARM MANAGEMENT SYSTEM - COMPLETE"); print("=" * 60)
     try:
@@ -1670,8 +2039,187 @@ if __name__ == '__main__':
         print("Error checking DB:", e)
     print("Starting server: http://localhost:5000"); print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
-
+    
 def init_database():
+    """
+    Initialize the database in a way that works whether get_db_connection()
+    returns a DB-API connection (sqlite3/psycopg2) or you have a SQLAlchemy engine.
+    This function is idempotent (safe to run multiple times).
+    """
+    # Import lazily to avoid circular import issues if app.py already imports db_helper
+    try:
+        from db_helper import get_db_connection, engine as sa_engine
+    except Exception:
+        # If engine import fails, try to still get a DB-API connection
+        from db_helper import get_db_connection
+        sa_engine = None
+
+    from datetime import datetime
+    import traceback
+
+    create_statements = [
+        """
+        CREATE TABLE IF NOT EXISTS user (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS staff (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            department TEXT,
+            email TEXT,
+            phone TEXT NOT NULL,
+            address TEXT,
+            dob DATE,
+            date_employed DATE,
+            status TEXT DEFAULT 'Active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS task (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            assigned_to TEXT,
+            status TEXT DEFAULT 'Pending',
+            priority TEXT DEFAULT 'Normal',
+            due_date DATE,
+            category TEXT DEFAULT 'general',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS financial (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_type TEXT,
+            amount REAL,
+            category TEXT,
+            description TEXT,
+            transaction_date DATE,
+            reference TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_name TEXT,
+            report_type TEXT,
+            format TEXT,
+            filepath TEXT,
+            period_start DATE,
+            period_end DATE,
+            generated_by TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    ]
+
+    default_users = [
+        ('admin', 'admin@dlfarm.com', 'admin123', 'admin'),
+        ('manager', 'manager@dlfarm.com', 'manager123', 'manager'),
+        ('accountant', 'accountant@dlfarm.com', 'accountant123', 'accountant'),
+    ]
+
+    sample_staff = [
+        ('James', 'Kipianui Rotich', 'Farm Manager', 'Management', 'james@dlfarm.com', '0721368651', 'Eldoret', '1985-03-15', '2020-01-10'),
+        ('Michael', 'Kemboi', 'Mechanic', 'Maintenance', 'michael@dlfarm.com', '0720977192', 'Eldoret', '1990-07-22', '2021-03-05'),
+        ('Nicholas', 'Yego', 'Accountant', 'Finance', 'nicholas@dlfarm.com', '0712441667', 'Eldoret', '1988-11-30', '2019-08-15'),
+    ]
+
+    def _run_dbapi_statements(conn):
+        try:
+            cur = conn.cursor()
+            for s in create_statements:
+                cur.execute(s)
+            conn.commit()
+
+            cur.execute('SELECT COUNT(*) FROM user')
+            if (cur.fetchone() or [0])[0] == 0:
+                for u, e, p, r in default_users:
+                    cur.execute('INSERT OR IGNORE INTO user (username, email, password, role) VALUES (?, ?, ?, ?)', (u, e, p, r))
+                conn.commit()
+
+            cur.execute('SELECT COUNT(*) FROM staff')
+            if (cur.fetchone() or [0])[0] == 0:
+                for fn, ln, pos, dept, email, phone, addr, dob, emp_date in sample_staff:
+                    cur.execute('INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                (fn, ln, pos, dept, email, phone, addr, dob, emp_date))
+                conn.commit()
+            cur.close()
+        except Exception:
+            traceback.print_exc()
+            raise
+
+    def _run_sqlalchemy_statements(sa_engine_local):
+        from sqlalchemy import text
+        try:
+            with sa_engine_local.begin() as conn:
+                for s in create_statements:
+                    conn.execute(text(s))
+
+                cnt = conn.execute(text("SELECT COUNT(*) FROM user")).scalar() or 0
+                if cnt == 0:
+                    for u, e, p, r in default_users:
+                        conn.execute(text("INSERT INTO user (username, email, password, role) VALUES (:u, :e, :p, :r)"),
+                                     {"u": u, "e": e, "p": p, "r": r})
+
+                cnt2 = conn.execute(text("SELECT COUNT(*) FROM staff")).scalar() or 0
+                if cnt2 == 0:
+                    for fn, ln, pos, dept, email, phone, addr, dob, emp_date in sample_staff:
+                        conn.execute(text(
+                            "INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed) "
+                            "VALUES (:fn, :ln, :pos, :dept, :email, :phone, :addr, :dob, :emp_date)"
+                        ), {"fn": fn, "ln": ln, "pos": pos, "dept": dept, "email": email, "phone": phone, "addr": addr, "dob": dob, "emp_date": emp_date})
+        except Exception:
+            traceback.print_exc()
+            raise
+
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        print("Error obtaining DB connection in init_database():", e)
+        traceback.print_exc()
+        raise
+
+    try:
+        if hasattr(conn, "cursor"):
+            _run_dbapi_statements(conn)
+            try:
+                conn.close()
+            except Exception:
+                pass
+        else:
+            if sa_engine is None:
+                try:
+                    from sqlalchemy import text
+                    if hasattr(conn, "begin"):
+                        _run_sqlalchemy_statements(conn)
+                    else:
+                        raise RuntimeError("No DB-API cursor and no SQLAlchemy engine available.")
+                except Exception:
+                    traceback.print_exc()
+                    raise
+            else:
+                _run_sqlalchemy_statements(sa_engine)
+    finally:
+        try:
+            if hasattr(conn, "close"):
+                conn.close()
+        except Exception:
+            pass
+
+    print("✓ Database initialized")
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -1742,5 +2290,7 @@ def init_database():
 if __name__ == '__main__':
     init_database()
     app.run(debug=True)
+
+
 
 
