@@ -84,27 +84,13 @@ def load_user(user_id):
         row = cursor.fetchone()
         conn.close()
         if row:
-            return User(row[0], row[1], row[2], row[3])
-        return None
-    except Exception:
-        return None
+# --- DB helper import (using db_helper.py) ---
+try:
+    from db_helper import engine, get_db_connection
+except Exception:
+    # Fallback in case db_helper is missing or fails; re-raise for visibility
+    raise
 
-
-
-# NOTE: get_db_connection replaced to use db_helper (SQLAlchemy).
-from db_helper import get_db_connection as _db_get_db_connection
-
-def get_db_connection():
-    return _db_get_db_connection()
-
-def ensure_task_columns(conn):
-    """If older DB lacked priority/category columns, add them safely."""
-    try:
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(task)")
-        cols = {r[1] for r in cur.fetchall()}
-        changed = False
-        if 'priority' not in cols:
             cur.execute("ALTER TABLE task ADD COLUMN priority TEXT DEFAULT 'Normal'")
             changed = True
             print("✓ Added 'priority' column to task")
