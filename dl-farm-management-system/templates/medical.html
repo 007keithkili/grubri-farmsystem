@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Medical Records{% endblock %}
+{% block page_title %}Medical Records{% endblock %}
+{% block page_subtitle %}Animal treatments and checkups{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Medical Records</h4>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMedicalModal"><i class="fas fa-plus"></i> Add Record</button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>ID</th>
+          <th>Animal ID</th>
+          <th>Treatment Date</th>
+          <th>Condition</th>
+          <th>Treatment</th>
+          <th>Vet</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if medical_records %}
+          {% for m in medical_records %}
+          <tr>
+            <td>M-{{ m.id }}</td>
+            <td>{{ m.animal_id }}</td>
+            <td>{{ m.treatment_date }}</td>
+            <td>{{ m.condition }}</td>
+            <td>{{ m.treatment }}</td>
+            <td>{{ m.veterinarian or '—' }}</td>
+            <td>
+              <a class="btn btn-sm btn-info" href="{{ url_for('view_medical', medical_id=m.id) }}"><i class="fas fa-eye"></i></a>
+              <a class="btn btn-sm btn-warning" href="{{ url_for('edit_medical', medical_id=m.id) }}"><i class="fas fa-edit"></i></a>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="text-center">No medical records found.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Medical Modal -->
+<div class="modal fade" id="addMedicalModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Medical Record</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="POST" action="{{ url_for('add_medical') }}">
+        <div class="modal-body">
+          <div class="mb-3"><label class="form-label">Animal ID *</label><input name="animal_id" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">Treatment Date *</label><input name="treatment_date" type="date" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">Condition *</label><input name="condition" class="form-control" required></div>
+          <div class="mb-3"><label class="form-label">Treatment *</label><input name="treatment" class="form-control" required></div>
+          <div class="row">
+            <div class="col-md-6 mb-3"><label class="form-label">Veterinarian</label><input name="veterinarian" class="form-control"></div>
+            <div class="col-md-6 mb-3"><label class="form-label">Next Checkup</label><input name="next_checkup" type="date" class="form-control"></div>
+          </div>
+          <div class="mb-3"><label class="form-label">Notes</label><textarea name="notes" class="form-control"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button><button class="btn btn-primary" type="submit">Add</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

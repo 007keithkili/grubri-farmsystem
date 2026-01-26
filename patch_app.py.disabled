@@ -1,0 +1,157 @@
+# scripts/patch_app.py
+# Usage: run from project root while your venv is active:
+# python .\scripts\patch_app.py
+#
+# Makes minimal, targeted edits to app.py:
+# - include id_number on add_staff insert
+# - include id_number on edit_staff update
+# - inject staff_list fetch into tasks()
+# - ensure render_template in tasks() gets staff_members=staff_list
+# - append /delete_task route if missing
+#
+# Creates a backup app.py.bak before editing.
+
+import re
+from pathlib import Path
+import shutil
+import sys
+
+ROOT = Path('.').resolve()
+APP = ROOT / 'app.py'
+BAK = ROOT / 'app.py.bak'
+
+if not APP.exists():
+    print("ERROR: app.py not found in project root. Run from project root.", file=sys.stderr)
+    sys.exit(1)
+
+# backup
+shutil.copy2(APP, BAK)
+print(f"Backup created: {BAK}")
+
+text = APP.read_text(encoding='utf-8')
+
+# 1) Replace the INSERT INTO staff execute call (robust regex match)
+insert_pattern = re.compile(
+    r"cur\.execute\(\s*'INSERT INTO staff\s*\(\s*first_name\s*,\s*last_name\s*,\s*position\s*,\s*department\s*,\s*email\s*,\s*phone\s*,\s*address\s*,\s*dob\s*,\s*date_employed\s*\)\s*VALUES\s*\(\s*\?,\s*\?,\s*\?,\s*\?,\s*\?,\s*\?,\s*\?,\s*\?,\s*\?\s*\)'\s*,\s*\(\s*fn\s*,\s*ln\s*,\s*pos\s*,\s*request\.form\.get\('department'.*?request\.form\.get\('date_employed'\)\s*\)\s*\)",
+    flags=re.DOTALL | re.IGNORECASE
+)
+
+new_insert = (
+    "cur.execute('INSERT INTO staff (first_name, last_name, position, department, email, phone, address, dob, date_employed, id_number) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',\n"
+    "                    (fn, ln, pos, request.form.get('department',''), request.form.get('email',''), phone, request.form.get('address',''), request.form.get('dob'), request.form.get('date_employed'), request.form.get('id_number','')))"
+)
+
+if insert_pattern.search(text):
+    text = insert_pattern.sub(new_insert, text, count=1)
+    print("Patched add_staff INSERT to include id_number.")
+else:
+    print("Warning: Could not find the exact add_staff INSERT pattern. No INSERT change made (you may already have it).")
+
+# 2) Replace edit_staff UPDATE to include id_number (robust match)
+update_pattern = re.compile(
+    r"cur\.execute\(\s*'UPDATE staff SET\s*first_name=\?,\s*last_name=\?,\s*position=\?,\s*department=\?,\s*email=\?,\s*phone=\?,\s*status=\?\s*WHERE id=\?'\s*,\s*\(\s*request\.form\.get\('first_name'.*?staff_id\s*\)\s*\)",
+    flags=re.DOTALL | re.IGNORECASE
+)
+
+# A safe replacement string that adds id_number field between email and phone (and parameter order)
+new_update = (
+    "cur.execute('UPDATE staff SET first_name=?, last_name=?, position=?, department=?, email=?, id_number=?, phone=?, status=? WHERE id=?',\n"
+    "                        (request.form.get('first_name','').strip(), request.form.get('last_name','').strip(), request.form.get('position','').strip(), request.form.get('department','').strip(), request.form.get('email','').strip(), request.form.get('id_number','').strip(), request.form.get('phone','').strip(), request.form.get('status','Active').strip(), staff_id))"
+)
+
+if update_pattern.search(text):
+    text = update_pattern.sub(new_update, text, count=1)
+    print("Patched edit_staff UPDATE to include id_number.")
+else:
+    # fallback: try to find a simpler pattern and replace order of params
+    simple_update_pattern = re.compile(
+        r"cur\.execute\(\s*'UPDATE staff SET\s*first_name=\?,\s*last_name=\?,\s*position=\?,\s*department=\?,\s*email=\?,\s*phone=\?,\s*status=\?\s*WHERE id=\?'\s*,\s*\(",
+        flags=re.IGNORECASE
+    )
+    if simple_update_pattern.search(text):
+        text = simple_update_pattern.sub("cur.execute('UPDATE staff SET first_name=?, last_name=?, position=?, department=?, email=?, id_number=?, phone=?, status=? WHERE id=?', (", text, count=1)
+        print("Patched edit_staff UPDATE (fallback).")
+    else:
+        print("Warning: Could not find edit_staff UPDATE pattern. No UPDATE change made (you may already have it).")
+
+# 3) Inject staff_list fetch inside tasks()
+# Find the start of tasks() function
+tasks_def = re.search(r"def\s+tasks\s*\(\s*\)\s*:", text)
+if tasks_def:
+    start_idx = tasks_def.end()
+    # find the first "conn = get_db_connection(); cur = conn.cursor()" after tasks def
+    m_cursor = re.search(r"conn\s*=\s*get_db_connection\(\)\s*;\s*cur\s*=\s*conn\.cursor\(\)", text[start_idx:], flags=re.IGNORECASE)
+    if m_cursor:
+        insert_at = start_idx + m_cursor.end()
+        inject_code = (
+            "\n        # automatically fetched staff list for task assignment dropdown\n"
+            "        try:\n"
+            "            cur.execute('SELECT id, first_name, last_name FROM staff ORDER BY first_name')\n"
+            "            staff_list = cur.fetchall()\n"
+            "        except:\n"
+            "            staff_list = []\n"
+        )
+        # only insert if not already present
+        if "staff_list =" not in text[start_idx:insert_at+200]:
+            text = text[:insert_at] + inject_code + text[insert_at:]
+            print("Inserted staff_list fetch into tasks().")
+        else:
+            print("staff_list already present in tasks(); no insert made.")
+    else:
+        print("Warning: Could not find tasks() cursor creation line to inject staff_list. You may need to add it manually.")
+else:
+    print("Warning: def tasks() not found; cannot inject staff_list automatically.")
+
+# 4) Ensure render_template('tasks.html', ...) includes staff_members=staff_list
+# We'll locate the return inside the tasks function and inject param
+if tasks_def:
+    # find slice of function (from def tasks start to the next blank line that looks like next def or end)
+    rest = text[tasks_def.start():]
+    # find the "return render_template('tasks.html'" within this slice
+    m_ret = re.search(r"return\s+render_template\(\s*['\"]tasks\.html['\"].*?\)", rest, flags=re.DOTALL)
+    if m_ret:
+        ret_text = m_ret.group(0)
+        if "staff_members" not in ret_text:
+            new_ret = re.sub(r"\)\s*$", ", staff_members=staff_list)", ret_text.rstrip(), flags=re.DOTALL)
+            # replace the first occurrence in the slice
+            text = text[:tasks_def.start()] + rest.replace(ret_text, new_ret, 1)
+            print("Added staff_members=staff_list to tasks() render_template call.")
+        else:
+            print("tasks() render_template already contains staff_members; no change.")
+    else:
+        print("Warning: Could not find return render_template('tasks.html') inside tasks(); you may need to add staff_members manually.")
+
+# 5) Append delete_task route if not present
+if "def delete_task" not in text and "/delete_task" not in text:
+    delete_route = """
+
+# --- API: delete task (AJAX) ---
+@app.route('/delete_task', methods=['POST'])
+@login_required
+def delete_task():
+    try:
+        # accept either form-encoded or JSON body
+        task_id = request.form.get('task_id') or (request.get_json(silent=True) or {}).get('task_id')
+        if not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_id'})
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute('DELETE FROM task WHERE id = ?', (task_id,))
+        conn.commit(); conn.close()
+        return jsonify({'success': True, 'message': 'Task deleted'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+"""
+    # try to insert before __main__ if present
+    m_main = re.search(r"if\s+__name__\s*==\s*['\"]__main__['\"]\s*:", text)
+    if m_main:
+        text = text[:m_main.start()] + delete_route + "\n\n" + text[m_main.start():]
+    else:
+        text = text + "\n\n" + delete_route
+    print("Appended delete_task route.")
+else:
+    print("delete_task route already exists; no addition made.")
+
+# Save file
+APP.write_text(text, encoding='utf-8')
+print("app.py patched. Please restart your Flask server.")

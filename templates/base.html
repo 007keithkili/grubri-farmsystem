@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>DL Farm Management - {% block title %}Dashboard{% endblock %}</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Chart.js (can be in head) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- jQuery (used by DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+    <!-- DataTables (requires jQuery) -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css"/>
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css"/>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+
+    <!-- Flatpickr datepicker (optional) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <!-- Inline styles for critical layout (fixed .stat-card selector) -->
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 250px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            background: linear-gradient(180deg, var(--primary) 0%, #1a2520 100%);
+            color: white;
+            transition: all 0.3s;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h3 {
+            color: white;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .sidebar-header p {
+            color: #95a5a6;
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-menu {
+            padding: 15px 0;
+        }
+
+        .sidebar-menu .nav-link {
+            color: #ecf0f1;
+            padding: 12px 20px;
+            border-radius: 0;
+            margin: 2px 0;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .sidebar-menu .nav-link:hover,
+        .sidebar-menu .nav-link.active {
+            background-color: rgba(52, 152, 219, 0.2);
+            color: white;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .sidebar-menu .nav-link i {
+            width: 25px;
+            margin-right: 10px;
+        }
+
+        /* Main Content */
+        #content {
+            margin-left: 250px;
+            padding: 20px;
+            min-height: 100vh;
+            background-color: #f8f9fa;
+            transition: all 0.3s;
+        }
+
+        /* Top Navbar */
+        .top-navbar {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-role-badge {
+            background: var(--secondary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .btn-logout {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-logout:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #sidebar {
+                width: 70px;
+            }
+
+            .sidebar-header h3,
+            .sidebar-header p,
+            .nav-link span {
+                display: none;
+            }
+
+            .nav-link {
+                justify-content: center;
+                padding: 15px;
+            }
+
+            .nav-link i {
+                margin-right: 0;
+                font-size: 1.2rem;
+            }
+
+            #content {
+                margin-left: 70px;
+                padding: 15px;
+            }
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            border-top: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        .stat-card {
+          background: #fff;
+          padding: 18px;
+          border-radius: 12px;
+          box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+          display:flex;
+          gap:12px;
+          align-items:center;
+        }
+        .stat-card i { font-size: 28px; color: #444; }
+        .stat-card h3 { margin:0; font-size: 1.6rem; font-weight:600; }
+        .table-hover tbody tr:hover { background: rgba(0,0,0,0.02); }
+        .badge { font-weight:600; }
+        .action-btn { min-width:36px; }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Single toast container -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index:10550;">
+      <div id="global-toast-container"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <nav id="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="fas fa-tractor"></i> DL Farm</h3>
+            <p>Raising animals with care</p>
+        </div>
+
+        <div class="sidebar-menu">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                        <i class="fas fa-tachometer-alt"></i> <span>Dashboard</span>
+                    </a>
+                </li>
+
+                {% if current_user.role in ['admin', 'manager'] %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'animals' %}active{% endif %}" href="{{ url_for('animals') }}">
+                        <i class="fas fa-paw"></i> <span>Animal Management</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'breeding' %}active{% endif %}" href="{{ url_for('breeding') }}">
+                        <i class="fas fa-heart"></i> <span>Breeding Management</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'medical' %}active{% endif %}" href="{{ url_for('medical') }}">
+                        <i class="fas fa-stethoscope"></i> <span>Medical Records</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">
+                        <i class="fas fa-seedling"></i> <span>Feed Management</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.role == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'staff' %}active{% endif %}" href="{{ url_for('staff') }}">
+                        <i class="fas fa-users"></i> <span>Staff Management</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.role in ['admin', 'accountant'] %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'sales' %}active{% endif %}" href="{{ url_for('sales') }}">
+                        <i class="fas fa-shopping-cart"></i> <span>Sales Management</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'customers' %}active{% endif %}" href="{{ url_for('customers') }}">
+                        <i class="fas fa-user-friends"></i> <span>Customer Management</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'financial' %}active{% endif %}" href="{{ url_for('financial') }}">
+                        <i class="fas fa-chart-line"></i> <span>Financial Analysis</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" href="{{ url_for('tasks') }}">
+                        <i class="fas fa-tasks"></i> <span>Task Management</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'suppliers' %}active{% endif %}" href="{{ url_for('suppliers') }}">
+                        <i class="fas fa-truck"></i> <span>Suppliers</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                        <i class="fas fa-chart-bar"></i> <span>Reports</span>
+                    </a>
+                </li>
+
+                {% if current_user.role == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">
+                        <i class="fas fa-cog"></i> <span>Settings</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <div style="position: absolute; bottom: 20px; width: 100%; text-align: center;">
+            <span class="user-role-badge">{{ current_user.role|upper }}</span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div id="content">
+        <!-- Top Navbar -->
+        <div class="top-navbar">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">{% block page_title %}Dashboard{% endblock %}</h1>
+                    <p class="text-muted mb-0">{% block page_subtitle %}Performance insights from your farm{% endblock %}</p>
+                </div>
+
+                <div class="user-info">
+                    <div class="text-end">
+                        <p class="mb-1"><strong>Welcome, {{ current_user.username }} ({{ current_user.role }})</strong></p>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation modal (Bootstrap 5 markup) -->
+        <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-body">Are you sure?</div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button id="confirmOk" type="button" class="btn btn-danger">Confirm</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Flash Messages (fallback) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Main Content Area -->
+        {% block content %}{% endblock %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p class="mb-1">DL Farm Management System v2.1 • 2025 • All rights reserved</p>
+            <p class="mb-0">Farm Administrator • DL Farm</p>
+        </div>
+    </div>
+
+    <!-- --------------- Scripts (ordered) --------------- -->
+    <!-- Bootstrap 5 bundle (includes Popper) - load once -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+    <!-- UI support, toast & global handlers (now runs after bootstrap is available) -->
+    <script>
+    (function(){
+      // safe showToast
+      function showToast(msg, type='info') {
+        const typeClass = (type === 'success') ? 'text-bg-success' : (type === 'error' ? 'text-bg-danger' : 'text-bg-info');
+        const id = 't' + Date.now();
+        const wrapper = document.getElementById('global-toast-container');
+        const html = `
+          <div id="${id}" class="toast align-items-center ${typeClass} border-0 mb-2" role="alert" aria-live="polite" aria-atomic="true" data-bs-delay="3500">
+            <div class="d-flex">
+              <div class="toast-body">${msg}</div>
+              <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+          </div>`;
+        wrapper.insertAdjacentHTML('beforeend', html);
+        const el = document.getElementById(id);
+        const bs = new bootstrap.Toast(el);
+        bs.show();
+        el.addEventListener('hidden.bs.toast', () => el.remove());
+      }
+
+      // safe modal factory
+      function getModalById(id) {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        try {
+          return bootstrap.Modal.getOrCreateInstance(el);
+        } catch (e) {
+          console.warn('Modal init error for', id, e);
+          return null;
+        }
+      }
+
+      // Global delegated click handler for data-action attributes
+      document.addEventListener('click', function(e){
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        e.preventDefault();
+
+        const action = btn.getAttribute('data-action');
+
+        if (action === 'open-modal') {
+          const target = btn.getAttribute('data-bs-target') || btn.getAttribute('data-target');
+          if (!target) { showToast('Modal target missing', 'error'); return; }
+          const id = target.replace(/^#/, '');
+          const modal = getModalById(id);
+          if (!modal) { showToast('Modal not found: ' + id, 'error'); return; }
+          modal.show();
+          return;
+        }
+
+        if (action === 'update-status') {
+          const taskId = btn.getAttribute('data-task-id');
+          const status = btn.getAttribute('data-status');
+          if (!taskId || !status) { showToast('Missing taskId or status', 'error'); return; }
+
+          fetch('/update_task_status', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ task_id: taskId, status: status })
+          })
+          .then(r => r.json().catch(()=>({success:false,message:'Invalid JSON'})).then(data => ({ok:r.ok,data})))
+          .then(obj => {
+            const data = obj.data || {};
+            if (data.success) {
+              showToast(data.message || 'Updated', 'success');
+              setTimeout(()=> location.reload(), 700);
+            } else {
+              showToast(data.message || 'Update failed', 'error');
+            }
+          })
+          .catch(err => { console.error(err); showToast('Network or server error', 'error'); });
+          return;
+        }
+
+        if (action === 'view-item' || action === 'edit-item') {
+          const href = btn.getAttribute('data-href') || btn.getAttribute('href');
+          if (!href) { showToast('Missing link for view/edit', 'error'); return; }
+          window.location.href = href;
+          return;
+        }
+      });
+
+      // Expose helper for console testing
+      window._dl_showToast = showToast;
+      window._dl_getModal = getModalById;
+
+      // Convert Flask flash messages to toasts when DOM ready (if jQuery is available use it)
+      document.addEventListener('DOMContentLoaded', function(){
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, msg in messages %}
+              showToast({{ msg|tojson }}, '{{ 'success' if category=='success' else 'error' if category=='error' else 'info' }}');
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+      });
+    })();
+    </script>
+
+    <!-- Confirmation helper using Bootstrap 5 API (replaces jQuery .modal calls) -->
+    <script>
+      function confirmAction(message, callback) {
+        const modalEl = document.getElementById('confirmModal');
+        if (!modalEl) { if (callback) callback(false); return; }
+        modalEl.querySelector('.modal-body').textContent = message || 'Are you sure?';
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const okBtn = modalEl.querySelector('#confirmOk');
+
+        function handler() {
+          okBtn.removeEventListener('click', handler);
+          bsModal.hide();
+          if (typeof callback === 'function') callback(true);
+        }
+        okBtn.addEventListener('click', handler);
+        bsModal.show();
+      }
+    </script>
+
+    <!-- DataTables + Flatpickr initializers (after jQuery & DataTables loaded) -->
+    <script>
+    $(document).ready(function() {
+      // initialize any table with class .data-table
+      $('.data-table').each(function() {
+        $(this).DataTable({
+          dom: 'Bfrtip',
+          buttons: ['copy', 'csv', 'print'],
+          pageLength: 10,
+          lengthMenu: [5,10,25,50],
+          columnDefs: [{ orderable: false, targets: -1 }]
+        });
+      });
+
+      if (window.flatpickr) {
+        flatpickr('.date-picker', { dateFormat: 'Y-m-d' });
+      }
+    });
+    </script>
+
+    <!-- small utility: auto-dismiss bootstrap alerts -->
+    <script>
+      setTimeout(() => {
+        document.querySelectorAll('.alert').forEach(alert => {
+          try { new bootstrap.Alert(alert).close(); } catch(e) {}
+        });
+      }, 5000);
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

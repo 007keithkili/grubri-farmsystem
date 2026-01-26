@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Breeding Programs{% endblock %}
+{% block page_title %}Breeding Programs{% endblock %}
+{% block page_subtitle %}Manage breeding pairs and expected births{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Breeding Programs</h4>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBreedingModal">
+      <i class="fas fa-plus"></i> New Pair
+    </button>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #3498db;">
+        <i class="fas fa-dna"></i>
+        <h3>{{ active_pairs }}</h3>
+        <p>Active Pairs</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #2ecc71;">
+        <i class="fas fa-baby"></i>
+        <h3>{{ expected_births }}</h3>
+        <p>Expected Births</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #f39c12;">
+        <i class="fas fa-paw"></i>
+        <h3>{{ total_offspring }}</h3>
+        <p>Total Offspring</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #9b59b6;">
+        <i class="fas fa-percentage"></i>
+        <h3>{{ success_rate }}%</h3>
+        <p>Success Rate</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>Pair ID</th>
+          <th>Male Animal</th>
+          <th>Female Animal</th>
+          <th>Breeding Date</th>
+          <th>Expected Birth</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if breeding_records %}
+          {% for b in breeding_records %}
+          <tr>
+            <td>BP-{{ b.id }}</td>
+            <td>{{ b.male_id }}</td>
+            <td>{{ b.female_id }}</td>
+            <td>{{ b.breeding_date or '—' }}</td>
+            <td>{{ b.expected_birth or '—' }}</td>
+            <td>
+              <span class="badge {% if b.status=='Completed' %}bg-success{% elif b.status=='In Progress' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+                {{ b.status }}
+              </span>
+            </td>
+            <td>
+              <a class="btn btn-sm btn-info" href="{{ url_for('view_breeding', breeding_id=b.id) }}" title="View"><i class="fas fa-eye"></i></a>
+              <a class="btn btn-sm btn-warning" href="{{ url_for('edit_breeding', breeding_id=b.id) }}" title="Edit"><i class="fas fa-edit"></i></a>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="text-center">No breeding records found.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Breeding Modal (matches staff modal pattern) -->
+<div class="modal fade" id="addBreedingModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Breeding Pair</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('add_breeding') }}">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Male ID *</label>
+              <input name="male_id" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Female ID *</label>
+              <input name="female_id" class="form-control" required>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Breeding Date *</label>
+              <input name="breeding_date" type="date" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Expected Birth</label>
+              <input name="expected_birth" type="date" class="form-control">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" type="submit">Add Pair</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

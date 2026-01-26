@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Farm Reports & Insights{% endblock %}
+{% block page_subtitle %}Performance overview — {{ start_date|default('') }}{% if end_date %} — {{ end_date }}{% else %} (last 30 days){% endif %}{% endblock %}
+
+{% block content %}
+<!-- HERO / BANNER -->
+<div class="mb-4" style="position:relative;">
+  <div style="border-radius:12px; overflow:hidden; background: linear-gradient(135deg,#ff416c 0%, #2bd2ff 100%); color:white; padding:28px 32px;">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h1 style="font-weight:700; letter-spacing:0.2px; margin-bottom:6px;">DL Farm Management System</h1>
+        <p class="mb-1" style="opacity:.95; max-width:760px;">
+          insights — financials, production, livestock and operations in one place.
+        </p>
+        <div class="mt-3">
+          <a class="btn btn-light btn-sm me-2" href="{{ url_for('reports') }}">View Reports</a>
+          <a class="btn btn-outline-light btn-sm" href="{{ url_for('animals') }}">Manage Animals</a>
+        </div>
+      </div>
+
+      <!-- Right-side small KPIs overlay inside the hero -->
+      <div style="min-width:300px;">
+        <div style="background: rgba(255,255,255,0.08); padding:16px; border-radius:10px; backdrop-filter: blur(4px);">
+          <div class="d-flex flex-wrap gap-2">
+            <div style="min-width:120px;">
+              <small class="text-white-50">Total</small>
+              <div style="font-weight:700; font-size:1.2rem;">{{ total_animals|default(0) }}</div>
+            </div>
+            <div style="min-width:120px;">
+              <small class="text-white-50">Active Breeds</small>
+              <div style="font-weight:700; font-size:1.2rem;">{{ (total_animals|default(0)) and 4 or 0 }}</div>
+            </div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <div style="min-width:120px;">
+              <small class="text-white-50">Farm Size</small>
+              <div style="font-weight:700; font-size:1.1rem;">1 acres</div>
+            </div>
+            <div style="min-width:120px;">
+              <small class="text-white-50">Team</small>
+              <div style="font-weight:700; font-size:1.1rem;">{{ total_staff|default(0) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT: KPI tiles, Quick Actions, Charts -->
+<div class="row gy-3 mb-3">
+  <!-- KPI tiles -->
+  <div class="col-md-3">
+    <div class="stat-card p-3">
+      <i class="fas fa-paw fa-2x"></i>
+      <div class="ms-3">
+        <small class="text-muted">Total Animals</small>
+        <div class="h5 mb-0">{{ total_animals|default(0) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="stat-card p-3">
+      <i class="fas fa-chart-line fa-2x"></i>
+      <div class="ms-3">
+        <small class="text-muted">Net Profit</small>
+        <div class="h5 mb-0">Ksh {{ "{:,.2f}".format(net_profit|default(0)) }}</div>
+        <small class="text-muted">Period</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="stat-card p-3">
+      <i class="fas fa-seedling fa-2x"></i>
+      <div class="ms-3">
+        <small class="text-muted">Feed Consumed</small>
+        <div class="h5 mb-0">{{ (feed_series|default([]) | sum) }}</div>
+        <small class="text-muted">kg (range)</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="stat-card p-3">
+      <i class="fas fa-users fa-2x"></i>
+      <div class="ms-3">
+        <small class="text-muted">Total Staff</small>
+        <div class="h5 mb-0">{{ total_staff|default(0) }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions / Quick Reports -->
+<div class="card p-3 mb-3">
+  <h6 class="mb-2">Quick Actions & Reports</h6>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('reports') }}?report_type=financial">Financial Reports</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('reports') }}?report_type=livestock">Livestock Reports</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('reports') }}?report_type=production">Production Reports</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('reports') }}?report_type=inventory">Inventory Reports</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('reports') }}?report_type=staff">Staff Reports</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('reports') }}?report_type=custom">Custom Report</a>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">Financial Trend</h6>
+        <small class="text-muted">Period: {{ start_date|default('') }} — {{ end_date|default('') }}</small>
+      </div>
+      <canvas id="chartFinancial" height="120"></canvas>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card p-3">
+      <h6 class="mb-3">Task Status</h6>
+      <canvas id="chartTasks" height="220"></canvas>
+      <div class="mt-2 small text-muted">
+        <div>Pending: {{ task_counts.Pending|default(0) }}</div>
+        <div>In Progress: {{ task_counts['In Progress']|default(0) }}</div>
+        <div>Completed: {{ task_counts.Completed|default(0) }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom charts: Feed and Avg weight -->
+<div class="row g-3 mt-3">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h6>Daily Feed Consumption</h6>
+      <canvas id="chartFeed" height="100"></canvas>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h6>Average Weight Trend</h6>
+      <canvas id="chartWeight" height="100"></canvas>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  // safe defaults to avoid Undefined errors
+  const days = {{ days|default([])|tojson }};
+  const income = {{ income_series|default([])|tojson }};
+  const expense = {{ expense_series|default([])|tojson }};
+  const feed = {{ feed_series|default([])|tojson }};
+  const avgWeight = {{ avg_weight_series|default([])|tojson }};
+  const taskCounts = {{ task_counts|default({'Pending':0,'In Progress':0,'Completed':0})|tojson }};
+
+  // Financial trend (line)
+  const finCtx = document.getElementById('chartFinancial');
+  if (finCtx) {
+    new Chart(finCtx, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          { label: 'Income', data: income, borderColor:'#27ae60', backgroundColor:'rgba(39,174,96,0.08)', fill:true, tension:0.25 },
+          { label: 'Expense', data: expense, borderColor:'#e74c3c', backgroundColor:'rgba(231,76,60,0.06)', fill:true, tension:0.25 }
+        ]
+      },
+      options: { plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+    });
+  }
+
+  // Task donut
+  const tCtx = document.getElementById('chartTasks');
+  if (tCtx) {
+    new Chart(tCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pending','In Progress','Completed'],
+        datasets: [{
+          data: [taskCounts.Pending||0, taskCounts['In Progress']||0, taskCounts.Completed||0],
+          backgroundColor: ['#f39c12','#3498db','#2ecc71']
+        }]
+      },
+      options: { plugins:{legend:{position:'bottom'}} }
+    });
+  }
+
+  // Feed bar
+  const fCtx = document.getElementById('chartFeed');
+  if (fCtx) {
+    new Chart(fCtx, {
+      type: 'bar',
+      data: { labels: days, datasets: [{ label:'Feed (kg)', data: feed, backgroundColor:'#f39c12' }] },
+      options: { scales:{y:{beginAtZero:true}} }
+    });
+  }
+
+  // Average weight line
+  const wCtx = document.getElementById('chartWeight');
+  if (wCtx) {
+    new Chart(wCtx, {
+      type: 'line',
+      data: { labels: days, datasets: [{ label:'Avg weight (kg)', data: avgWeight, borderColor:'#9b59b6', backgroundColor:'rgba(155,89,182,0.06)', fill:true }] },
+      options: { scales:{y:{beginAtZero:true}} }
+    });
+  }
+})();
+async function loadDashboard(start, end) {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  const res = await fetch('/api/dashboard?' + params.toString());
+  const data = await res.json();
+
+  // update KPI text nodes
+  document.querySelector('#kpi_total_animals').textContent = data.kpis.total_animals || 0;
+  document.querySelector('#kpi_total_staff').textContent = data.kpis.total_staff || 0;
+
+  // update charts (assuming you saved Chart.js instances as window.finChart etc)
+  if (window.finChart) {
+    window.finChart.data.labels = data.days;
+    window.finChart.data.datasets[0].data = data.income;
+    window.finChart.data.datasets[1].data = data.expense;
+    window.finChart.update();
+  }
+  if (window.feedChart) {
+    window.feedChart.data.labels = data.days;
+    window.feedChart.data.datasets[0].data = data.feed;
+    window.feedChart.update();
+  }
+}
+document.querySelector('#generateBtn').addEventListener('click', () => {
+  const start = document.querySelector('#startDate').value;
+  const end = document.querySelector('#endDate').value;
+  loadDashboard(start, end);
+});
+
+</script>
+{% endblock %}
