@@ -90,13 +90,13 @@ def load_user(user_id):
         return None
 
 
+
+# NOTE: get_db_connection replaced to use db_helper (SQLAlchemy).
+from db_helper import get_db_connection as _db_get_db_connection
+
 def get_db_connection():
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+    return _db_get_db_connection()
 
-
-# ----- DB init + migration helper -----
 def ensure_task_columns(conn):
     """If older DB lacked priority/category columns, add them safely."""
     try:
@@ -1755,3 +1755,4 @@ def init_database():
 if __name__ == '__main__':
     init_database()
     app.run(debug=True)
+
