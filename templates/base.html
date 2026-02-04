@@ -230,29 +230,49 @@
         <div class="sidebar-menu">
             <ul class="nav flex-column">
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('dashboard') %}
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-tachometer-alt"></i> <span>Dashboard</span>
                     </a>
                 </li>
 
                 {% if current_user.role in ['admin', 'manager'] %}
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'animals' %}active{% endif %}" href="{{ url_for('animals') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('animals') %}
+                        <a class="nav-link {% if request.endpoint == 'animals' %}active{% endif %}" href="{{ url_for('animals') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'animals' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-paw"></i> <span>Animal Management</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'breeding' %}active{% endif %}" href="{{ url_for('breeding') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('breeding') %}
+                        <a class="nav-link {% if request.endpoint == 'breeding' %}active{% endif %}" href="{{ url_for('breeding') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'breeding' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-heart"></i> <span>Breeding Management</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'medical' %}active{% endif %}" href="{{ url_for('medical') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('medical_records') %}
+                        <a class="nav-link {% if request.endpoint == 'medical_records' %}active{% endif %}" href="{{ url_for('medical_records') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'medical_records' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-stethoscope"></i> <span>Medical Records</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('feed') %}
+                        <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-seedling"></i> <span>Feed Management</span>
                     </a>
                 </li>
@@ -260,7 +280,11 @@
 
                 {% if current_user.role == 'admin' %}
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'staff' %}active{% endif %}" href="{{ url_for('staff') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('staff') %}
+                        <a class="nav-link {% if request.endpoint == 'staff' %}active{% endif %}" href="{{ url_for('staff') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'staff' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-users"></i> <span>Staff Management</span>
                     </a>
                 </li>
@@ -268,43 +292,73 @@
 
                 {% if current_user.role in ['admin', 'accountant'] %}
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'sales' %}active{% endif %}" href="{{ url_for('sales') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('sales') %}
+                        <a class="nav-link {% if request.endpoint == 'sales' %}active{% endif %}" href="{{ url_for('sales') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'sales' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-shopping-cart"></i> <span>Sales Management</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'customers' %}active{% endif %}" href="{{ url_for('customers') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('customers') %}
+                        <a class="nav-link {% if request.endpoint == 'customers' %}active{% endif %}" href="{{ url_for('customers') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'customers' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-user-friends"></i> <span>Customer Management</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'financial' %}active{% endif %}" href="{{ url_for('financial') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('financial') %}
+                        <a class="nav-link {% if request.endpoint == 'financial' %}active{% endif %}" href="{{ url_for('financial') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'financial' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-chart-line"></i> <span>Financial Analysis</span>
                     </a>
                 </li>
                 {% endif %}
 
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" href="{{ url_for('tasks') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('tasks') %}
+                        <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" href="{{ url_for('tasks') }}">
+                    {% elif endpoint_exists is defined and endpoint_exists('view_task') %}
+                        <a class="nav-link {% if request.endpoint == 'view_task' %}active{% endif %}" href="{{ url_for('view_task') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'tasks' or request.endpoint == 'view_task' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-tasks"></i> <span>Task Management</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'suppliers' %}active{% endif %}" href="{{ url_for('suppliers') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('suppliers') %}
+                        <a class="nav-link {% if request.endpoint == 'suppliers' %}active{% endif %}" href="{{ url_for('suppliers') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'suppliers' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-truck"></i> <span>Suppliers</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('reports') %}
+                        <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('print_report') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-chart-bar"></i> <span>Reports</span>
                     </a>
                 </li>
 
                 {% if current_user.role == 'admin' %}
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">
+                    {% if endpoint_exists is defined and endpoint_exists('settings') %}
+                        <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">
+                    {% else %}
+                        <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="#">
+                    {% endif %}
                         <i class="fas fa-cog"></i> <span>Settings</span>
                     </a>
                 </li>
@@ -331,7 +385,11 @@
                     <div class="text-end">
                         <p class="mb-1"><strong>Welcome, {{ current_user.username }} ({{ current_user.role }})</strong></p>
                     </div>
-                    <a href="{{ url_for('logout') }}" class="btn-logout">
+                    {% if endpoint_exists is defined and endpoint_exists('logout') %}
+                        <a href="{{ url_for('logout') }}" class="btn-logout">
+                    {% else %}
+                        <a href="#" class="btn-logout">
+                    {% endif %}
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
@@ -527,5 +585,72 @@
     </script>
 
     {% block extra_js %}{% endblock %}
+    <!-- PRINT HELPER: paste into base.html before </body> (only once) -->
+<script>
+(function() {
+    // Helper: get query param
+    function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
+    if (getQueryParam('print') === '1') {
+        // Add print CSS to hide site chrome and tidy layout
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                /* hide navigation, sticky footers, sidebars if present */
+                nav, .navbar, .sidebar, .page-footer, .btn, .dataTables_length, .dataTables_filter, .dataTables_paginate { display: none !important; }
+                /* keep content full width */
+                .container, .content, .content-card, .page-content { width: auto !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
+                body { -webkit-print-color-adjust: exact; }
+                /* smaller fonts for printing */
+                body, table, p { font-size: 12px; color: #111; }
+            }
+            /* header for the printed page */
+            #dl-print-header { display: none; }
+            @media print {
+                #dl-print-header { display: block; position:relative; margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Insert a print header (logo + company info)
+        const header = document.createElement('div');
+        header.id = 'dl-print-header';
+        header.innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:110px;height:60px;border-radius:6px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-weight:700">
+                    <!-- replace with <img src="/static/img/logo.png"> if you have a logo file -->
+                    DL FARM
+                </div>
+                <div>
+                    <div style="font-size:18px;font-weight:700">DL Farm Management System</div>
+                    <div style="color:#666;font-size:12px;">Report / Print - Generated: ${new Date().toLocaleString()}</div>
+                </div>
+            </div>`;
+        // place header at top of main content (attempt several selectors)
+        const main = document.querySelector('.content') || document.querySelector('.content-card') || document.querySelector('#content') || document.body;
+        main.insertBefore(header, main.firstChild);
+
+        // Small delay before printing so CSS and header render
+        setTimeout(function() {
+            try {
+                window.print();
+            } catch (e) {
+                console.warn('Print failed', e);
+            }
+            // if the page was opened in a new tab/window (window.opener exists), try closing after print dialog
+            // NOTE: many browsers block window.close() unless opened by script, but this will attempt it.
+            setTimeout(function() {
+                try {
+                    if (window.opener) window.close();
+                } catch (e) {}
+            }, 800);
+        }, 350);
+    }
+})();
+</script>
+
 </body>
 </html>

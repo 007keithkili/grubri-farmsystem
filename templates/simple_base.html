@@ -230,7 +230,7 @@
                 
                 <li><a href="{{ url_for('tasks') }}">✅ Tasks</a></li>
                 <li><a href="{{ url_for('suppliers') }}">🚚 Suppliers</a></li>
-                <li><a href="{{ url_for('reports') }}">📊 Reports</a></li>
+                <li><a href="{{ url_for('print_report') }}">📊 Reports</a></li>
                 
                 {% if current_user.role == 'admin' %}
                 <li><a href="{{ url_for('staff') }}">👨‍💼 Staff</a></li>

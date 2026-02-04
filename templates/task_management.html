@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}Task Management{% endblock %}
+{% block page_title %}Task Management{% endblock %}
+{% block page_subtitle %}Track and assign farm tasks{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Small layout polish for task page */
+.content-card { padding: 18px; background: #fff; border-radius: 12px; box-shadow: 0 8px 20px rgba(2,6,23,0.04); }
+.stat-card { background: linear-gradient(180deg,#fff,#fbfdff); padding: 14px; border-radius: 10px; box-shadow: 0 6px 14px rgba(2,6,23,0.03); text-align:center; }
+.stat-card i { font-size:22px; display:block; margin-bottom:6px; }
+.controls-row { display:flex; gap:8px; align-items:center; }
+#viewControls { display:flex; gap:8px; align-items:center; }
+.small-muted { color:#6b7280; font-size:0.88rem; }
+
+/* Sector toggle styles: collapsed state */
+#toggleSector.collapsed { display: none; }
+
+/* hide non-print UI when printing, show just the printable area */
+@media print {
+  body * { visibility: hidden !important; }
+  #printArea, #printArea * { visibility: visible !important; }
+  #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-card">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 style="margin:0;">Task Management</h4>
+      <div class="small-muted">Track, assign and manage farm tasks</div>
+    </div>
+
+    <div id="viewControls" class="controls-row">
+      <button id="toggleViewBtn" class="btn btn-outline-secondary btn-sm" title="Toggle table sector">
+        <i class="fas fa-compress-arrows-alt"></i> Toggle View
+      </button>
+
+      <button id="printBtn" class="btn btn-outline-primary btn-sm" title="Print visible">
+        <i class="fas fa-print"></i> Print
+      </button>
+
+      <button id="exportCsvBtn" class="btn btn-outline-success btn-sm" title="Export CSV">
+        <i class="fas fa-file-csv"></i> CSV
+      </button>
+
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+        <i class="fas fa-plus"></i> Create Task
+      </button>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #e74c3c;">
+        <i class="fas fa-exclamation-circle"></i>
+        <h3>{{ pending_count|default(0) }}</h3>
+        <p>Pending Tasks</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #f39c12;">
+        <i class="fas fa-clock"></i>
+        <h3>{{ inprogress_count|default(0) }}</h3>
+        <p>In Progress</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #2ecc71;">
+        <i class="fas fa-check-circle"></i>
+        <h3>{{ completed_count|default(0) }}</h3>
+        <p>Completed</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-card" style="border-top-color: #3498db;">
+        <i class="fas fa-calendar-day"></i>
+        <h3>{{ overdue_count|default(0) }}</h3>
+        <p>Overdue</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINTABLE AREA -->
+  <div id="printArea">
+    <!-- TARGET SECTOR (the area from your screenshot). Toggle hides/shows this element -->
+    <div id="toggleSector">
+      <div class="table-responsive mb-2" id="tableArea">
+        <!-- DataTables picks up .data-table from base.html -->
+        <table class="table table-hover data-table" id="tasksTable">
+          <thead class="table-dark">
+            <tr>
+              <th>Task ID</th>
+              <th>Title</th>
+              <th>Assigned To</th>
+              <th>Due Date</th>
+              <th>Priority</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tfoot class="table-dark">
+            <tr>
+              <th>Task ID</th>
+              <th>Title</th>
+              <th>Assigned To</th>
+              <th>Due Date</th>
+              <th>Priority</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </tfoot>
+
+          <tbody>
+            {% if tasks %}
+              {% for t in tasks %}
+              <tr data-task-id="{{ t.id }}">
+                <td>T-{{ t.id }}</td>
+
+                <!-- Title cell (title + small description) -->
+                <td style="min-width:220px;">
+                  <div style="font-weight:600;">{{ t.title }}</div>
+                  {% if t.description %}
+                    <div class="text-muted small">{{ t.description }}</div>
+                  {% endif %}
+                </td>
+
+                <!-- Assigned To: robust lookup that handles missing staff_map and key-type mismatches -->
+                <td>
+                  {% set assigned_display = None %}
+                  {% if staff_map is defined %}
+                    {% if t.assigned_to is not none %}
+                      {% set assigned_display = staff_map.get(t.assigned_to) %}
+                    {% endif %}
+                    {% if not assigned_display and t.assigned_to is not none %}
+                      {% set assigned_display = staff_map.get((t.assigned_to ~ '')) %}
+                    {% endif %}
+                  {% endif %}
+                  {% if assigned_display %}
+                    {{ assigned_display }}
+                  {% else %}
+                    {{ t.assigned_to or 'Unassigned' }}
+                  {% endif %}
+                </td>
+
+                <!-- Due date -->
+                <td>{{ t.due_date or '—' }}</td>
+
+                <!-- Priority with badge -->
+                <td>
+                  {% set p = (t.priority or 'Normal') %}
+                  {% if p == 'High' %}
+                    <span class="badge bg-danger">{{ p }}</span>
+                  {% elif p == 'Normal' %}
+                    <span class="badge bg-info">{{ p }}</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ p }}</span>
+                  {% endif %}
+                </td>
+
+                <!-- Category -->
+                <td>{{ t.category or 'general' }}</td>
+
+                <!-- Actions: view / edit / delete + status buttons -->
+                <td>
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <a href="/tasks/{{ t.id }}" class="btn btn-sm btn-info" title="View"><i class="fas fa-eye"></i></a>
+                    <a href="/tasks/{{ t.id }}/edit" class="btn btn-sm btn-warning" title="Edit"><i class="fas fa-edit"></i></a>
+
+                    <button class="btn btn-sm btn-danger" title="Delete" onclick="deleteTask({{ t.id }}, this)"><i class="fas fa-trash"></i></button>
+
+                    {% if t.status != 'In Progress' %}
+                      <button class="btn btn-sm btn-success" title="Mark In Progress"
+                              onclick="updateTaskStatus({{ t.id }}, 'In Progress')"><i class="fas fa-play"></i></button>
+                    {% else %}
+                      <button class="btn btn-sm btn-outline-success" disabled title="Already In Progress"><i class="fas fa-play"></i></button>
+                    {% endif %}
+
+                    {% if t.status != 'Completed' %}
+                      <button class="btn btn-sm btn-primary" title="Mark Completed"
+                              onclick="updateTaskStatus({{ t.id }}, 'Completed')"><i class="fas fa-check"></i></button>
+                    {% else %}
+                      <button class="btn btn-sm btn-outline-primary" disabled title="Already Completed"><i class="fas fa-check"></i></button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="text-center">No tasks found.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div> <!-- end toggleSector -->
+  </div> <!-- end printArea -->
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTaskModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <!-- Use literal action path to match your route -->
+      <form method="POST" action="/add_task">
+        <div class="modal-header">
+          <h5 class="modal-title">Create New Task</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-8 mb-3">
+              <label class="form-label">Title *</label>
+              <input type="text" name="title" class="form-control" required>
+            </div>
+
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Assigned To</label>
+              <select name="assigned_to" class="form-select">
+                <option value="">-- Unassigned --</option>
+                {% for s in staff_members %}
+                  <option value="{{ s.id }}">{{ s.first_name }} {{ s.last_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="3"></textarea>
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Due Date</label>
+              <input type="date" name="due_date" class="form-control">
+            </div>
+
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Priority</label>
+              <select name="priority" class="form-select">
+                <option value="Normal" selected>Normal</option>
+                <option value="High">High</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Category</label>
+              <input type="text" name="category" class="form-control" placeholder="e.g. maintenance, feeding">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tasks JSON for JS use (charts removed so kept for other client use)
+const tasksData = {{ tasks_json|default([])|tojson }};
+
+/* Toggle the specific sector (wrap from screenshot) */
+document.addEventListener('DOMContentLoaded', function(){
+  const toggleBtn = document.getElementById('toggleViewBtn');
+  const toggleSector = document.getElementById('toggleSector');
+
+  toggleBtn?.addEventListener('click', function(){
+    if (!toggleSector) return;
+    toggleSector.classList.toggle('collapsed');
+    // Update button label/icon for clarity
+    if (toggleSector.classList.contains('collapsed')) {
+      toggleBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i> Show Table';
+    } else {
+      toggleBtn.innerHTML = '<i class="fas fa-compress-arrows-alt"></i> Hide Table';
+    }
+  });
+
+  document.getElementById('printBtn')?.addEventListener('click', function(){
+    window.print();
+  });
+
+  document.getElementById('exportCsvBtn')?.addEventListener('click', function(){
+    // Simple CSV export of current table rows inside the toggled sector
+    const rows = Array.from(document.querySelectorAll('#toggleSector #tasksTable tbody tr'));
+    const csv = [];
+    rows.forEach(r => {
+      const cols = Array.from(r.querySelectorAll('td')).map(td => '"' + td.innerText.replace(/"/g,'""') + '"');
+      if (cols.length) csv.push(cols.join(','));
+    });
+    if (!csv.length) return alert('No rows to export');
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'tasks_export.csv'; a.style.display='none';
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
+  });
+});
+
+/* ---------- Delete task (POST form-style so server accepts it reliably) ---------- */
+function deleteTask(taskId, btnEl){
+  if (!taskId) return;
+  if (!confirm('Delete task #' + taskId + '? This cannot be undone.')) return;
+  // send as form-like body (application/x-www-form-urlencoded)
+  const body = new URLSearchParams(); body.append('task_id', taskId);
+  fetch('/delete_task', { method: 'POST', body: body })
+    .then(r => r.json ? r.json() : r.text().then(t=>({success:false,message:t})))
+    .then(j => {
+      if (j && j.success) {
+        // remove row from table for instant feedback
+        const tr = btnEl.closest('tr');
+        if (tr) tr.remove();
+        if (window._dl_showToast) window._dl_showToast(j.message || 'Deleted', 'success');
+      } else {
+        alert(j && j.message ? j.message : 'Delete failed');
+      }
+    }).catch(e => { console.error(e); alert('Network/Server error'); });
+}
+
+/* ---------- Reuse updateTaskStatus from your template but using literal path ---------- */
+function updateTaskStatus(taskId, status) {
+    if (!taskId) return;
+    if (!confirm('Update task status to "' + status + '"?')) return;
+    fetch('/update_task_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({task_id: taskId, status: status})
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j && j.success) {
+            if (window._dl_showToast) window._dl_showToast(j.message || 'Updated', 'success');
+            setTimeout(() => location.reload(), 600);
+        } else {
+            alert(j.message || 'Error updating status');
+        }
+    })
+    .catch(e => { console.error(e); alert('Network error'); });
+}
+</script>
+{% endblock %}
