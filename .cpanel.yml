@@ -1,3 +1,9 @@
-hooks:
-  postdeploy:
-    - /bin/bash -lc "rsync -av --delete --exclude '.git' --exclude '.cpanel.yml' ./ ~/public_html/"
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/iqfrizqe/public_html/
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R . $DEPLOYPATH
+    - /bin/rm -rf $DEPLOYPATH/.git
+    - /bin/rm -f $DEPLOYPATH/.cpanel.yml
+    - /bin/chmod -R 755 $DEPLOYPATH
