@@ -1,0 +1,14 @@
+# .cpanel.yml
+deployment:
+  tasks:
+    - export:
+        source: ./
+        destination: /home/USERNAME/dl-farm-management-system
+    - run: |
+        # activate the cPanel virtualenv (change path if different)
+        source /home/USERNAME/virtualenv/dl-farm-management-system/3.11/bin/activate
+        # install/update python requirements
+        pip install -r /home/USERNAME/dl-farm-management-system/requirements.txt
+        # ensure tmp dir exists and touch restart file (Passenger-friendly restart)
+        mkdir -p /home/USERNAME/dl-farm-management-system/tmp
+        touch /home/USERNAME/dl-farm-management-system/tmp/restart.txt
