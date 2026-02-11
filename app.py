@@ -549,6 +549,56 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 from flask import render_template, request, redirect, url_for, flash
 from flask_login import login_required
 import sqlite3
+from flask import request, redirect, url_for, render_template, flash
+import sqlite3, os
+from datetime import date
+
+def get_db_path():
+    dburl = os.environ.get('DATABASE_URL','sqlite:////home/iqfrizqe/public_html/data.db')
+    if dburl.startswith('sqlite:///'):
+        return dburl.split('sqlite:///',1)[1]
+    return dburl
+
+@app.route('/production', methods=['GET'])
+def production_index():
+    db = get_db_path()
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    # get animals for dropdown
+    cur.execute("SELECT id, tag, name, herd FROM livestock ORDER BY id")
+    animals = cur.fetchall()
+    # recent production
+    cur.execute("SELECT p.*, l.tag, l.name FROM production p LEFT JOIN livestock l ON p.livestock_id = l.id ORDER BY p.date DESC LIMIT 50")
+    rows = cur.fetchall()
+    conn.close()
+    return render_template('production/index.html', animals=animals, rows=rows)
+
+@app.route('/production/add', methods=['POST'])
+def production_add():
+    db = get_db_path()
+    livestock_id = request.form.get('livestock_id') or None
+    tag = request.form.get('tag') or None
+    d = request.form.get('date') or str(date.today())
+    liters = request.form.get('liters') or '0'
+    recorded_by = request.form.get('recorded_by') or ''
+    notes = request.form.get('notes') or ''
+    try:
+        liters_val = float(liters)
+    except:
+        flash('Enter valid liters value', 'danger')
+        return redirect(url_for('production_index'))
+
+    conn = sqlite3.connect(db)
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO production (livestock_id, tag, date, liters, recorded_by, notes)
+                   VALUES (?,?,?,?,?,?)""",
+                (livestock_id, tag, d, liters_val, recorded_by, notes))
+    conn.commit()
+    conn.close()
+    flash('Production saved', 'success')
+    return redirect(url_for('production_index'))
+
 
 @app.route('/generate-report', methods=['POST'])
 @login_required

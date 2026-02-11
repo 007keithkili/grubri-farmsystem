@@ -1,3 +1,22 @@
+<<<<<<< HEAD
 ﻿hooks:
   postdeploy:
     - /bin/bash /home/iqfrizqe/.cpanel/hooks/sync-to-root.sh
+=======
+hooks:
+  postdeploy:
+    - /bin/bash -lc "set -e
+      # backup current public_html (optional)
+      if [ -d ~/public_html ]; then cp -a ~/public_html ~/public_html.deploy_backup_$(date +%s) || true; fi
+      # sync repo files to the document root
+      rm -rf ~/public_html/* || true
+      rsync -av --delete --exclude '.git' --exclude '.cpanel.yml' ./ ~/public_html/
+      # ensure perms
+      chown -R $(whoami):$(whoami) ~/public_html || true
+      find ~/public_html -type d -exec chmod 755 {} \\; || true
+      find ~/public_html -type f -exec chmod 644 {} \\; || true
+      # restart Passenger
+      mkdir -p ~/public_html/tmp || true
+      touch ~/public_html/tmp/restart.txt || true
+      "
+>>>>>>> origin/main
