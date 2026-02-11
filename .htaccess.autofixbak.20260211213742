@@ -1,0 +1,4 @@
+PassengerEnabled on
+PassengerAppRoot /home/iqfrizqe/public_html
+PassengerPython /home/iqfrizqe/venv_dlfarm/bin/python
+PassengerStartupFile passenger_wsgi.py

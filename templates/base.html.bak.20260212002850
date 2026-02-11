@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -240,7 +240,7 @@
                 </li>
 
                 {# STORES / INVENTORY NAV ITEM — visible only to admin and storekeeper #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'storekeeper'] %}
+                {% if current_user.role in ['admin', 'storekeeper'] %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('inventory_list') %}
                         <a class="nav-link {% if request.endpoint in ['inventory_list','view_inventory','edit_inventory'] %}active{% endif %}" href="{{ url_for('inventory_list') }}">
@@ -252,8 +252,7 @@
                 </li>
                 {% endif %}
 
-                {# Animal-related sections: admin + manager (production includes vet) #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
+                {% if current_user.role in ['admin', 'manager'] %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('animals') %}
                         <a class="nav-link {% if request.endpoint == 'animals' %}active{% endif %}" href="{{ url_for('animals') }}">
@@ -263,7 +262,6 @@
                         <i class="fas fa-paw"></i> <span>Animal Management</span>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('breeding') %}
                         <a class="nav-link {% if request.endpoint == 'breeding' %}active{% endif %}" href="{{ url_for('breeding') }}">
@@ -273,7 +271,6 @@
                         <i class="fas fa-heart"></i> <span>Breeding Management</span>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('medical_records') %}
                         <a class="nav-link {% if request.endpoint == 'medical_records' %}active{% endif %}" href="{{ url_for('medical_records') }}">
@@ -283,7 +280,6 @@
                         <i class="fas fa-stethoscope"></i> <span>Medical Records</span>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('feed') %}
                         <a class="nav-link {% if request.endpoint == 'feed' %}active{% endif %}" href="{{ url_for('feed') }}">
@@ -293,10 +289,8 @@
                         <i class="fas fa-seedling"></i> <span>Feed Management</span>
                     </a>
                 </li>
-                {% endif %}
 
-                {# Production: admin, manager, vet (no storekeeper) #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'manager', 'vet'] %}
+                <!-- PRODUCTION NAV ITEM (added) -->
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('production_list') %}
                         <a class="nav-link {% if request.endpoint in ['production_list','view_production','edit_production'] %}active{% endif %}" href="{{ url_for('production_list') }}">
@@ -308,8 +302,7 @@
                 </li>
                 {% endif %}
 
-                {# Staff management: admin only #}
-                {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                {% if current_user.role == 'admin' %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('staff') %}
                         <a class="nav-link {% if request.endpoint == 'staff' %}active{% endif %}" href="{{ url_for('staff') }}">
@@ -321,8 +314,7 @@
                 </li>
                 {% endif %}
 
-                {# Sales, Customers, Financial: admin + accountant #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'accountant'] %}
+                {% if current_user.role in ['admin', 'accountant'] %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('sales') %}
                         <a class="nav-link {% if request.endpoint == 'sales' %}active{% endif %}" href="{{ url_for('sales') }}">
@@ -332,7 +324,6 @@
                         <i class="fas fa-shopping-cart"></i> <span>Sales Management</span>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('customers') %}
                         <a class="nav-link {% if request.endpoint == 'customers' %}active{% endif %}" href="{{ url_for('customers') }}">
@@ -342,7 +333,6 @@
                         <i class="fas fa-user-friends"></i> <span>Customer Management</span>
                     </a>
                 </li>
-
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('financial') %}
                         <a class="nav-link {% if request.endpoint == 'financial' %}active{% endif %}" href="{{ url_for('financial') }}">
@@ -354,23 +344,18 @@
                 </li>
                 {% endif %}
 
-                {# Tasks: admin + manager #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('tasks') %}
                         <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" href="{{ url_for('tasks') }}">
                     {% elif endpoint_exists is defined and endpoint_exists('view_task') %}
                         <a class="nav-link {% if request.endpoint == 'view_task' %}active{% endif %}" href="{{ url_for('view_task') }}">
                     {% else %}
-                        <a class="nav-link {% if request.endpoint in ['tasks','view_task'] %}active{% endif %}" href="#">
+                        <a class="nav-link {% if request.endpoint == 'tasks' or request.endpoint == 'view_task' %}active{% endif %}" href="#">
                     {% endif %}
                         <i class="fas fa-tasks"></i> <span>Task Management</span>
                     </a>
                 </li>
-                {% endif %}
 
-                {# Suppliers / Supplies: admin + manager (uses 'suppliers' endpoint) #}
-                {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('suppliers') %}
                         <a class="nav-link {% if request.endpoint == 'suppliers' %}active{% endif %}" href="{{ url_for('suppliers') }}">
@@ -380,10 +365,10 @@
                         <i class="fas fa-truck"></i> <span>Suppliers</span>
                     </a>
                 </li>
-                {% endif %}
 
-                {# Settings: admin only #}
-                {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                
+
+                {% if current_user.role == 'admin' %}
                 <li class="nav-item">
                     {% if endpoint_exists is defined and endpoint_exists('settings') %}
                         <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="{{ url_for('settings') }}">
@@ -392,17 +377,6 @@
                     {% endif %}
                         <i class="fas fa-cog"></i> <span>Settings</span>
                     </a>
-                </li>
-                {% endif %}
-
-                {# Logout always visible for authenticated users #}
-                {% if current_user.is_authenticated %}
-                <li class="nav-item mt-3">
-                    {% if endpoint_exists is defined and endpoint_exists('logout') %}
-                        <a class="nav-link text-muted" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
-                    {% else %}
-                        <a class="nav-link text-muted" href="#"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
-                    {% endif %}
                 </li>
                 {% endif %}
             </ul>
@@ -692,6 +666,66 @@
         }, 350);
     }
 })();
+{# replace your current sidebar/nav block with this role-aware version #}
+<nav class="sidebar">
+  <ul class="nav flex-column">
+
+    <!-- Always-visible -->
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('dashboard') }}"><i class="fas fa-home me-2"></i>Dashboard</a>
+    </li>
+
+    <!-- Inventory: allowed for admin + storekeeper -->
+    {% if current_user.is_authenticated and current_user.role in ['admin','storekeeper'] %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('inventory_list') }}"><i class="fas fa-boxes me-2"></i>Inventory</a>
+    </li>
+    {% endif %}
+
+    <!-- Sales: admin + accountant only -->
+    {% if current_user.is_authenticated and current_user.role in ['admin','accountant'] %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('sales') }}"><i class="fas fa-shopping-basket me-2"></i>Sales</a>
+    </li>
+    {% endif %}
+
+    <!-- Production: admin, manager, vet (no storekeeper) -->
+    {% if current_user.is_authenticated and current_user.role in ['admin','manager','vet'] %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('production_list') }}"><i class="fas fa-tachometer-alt me-2"></i>Production</a>
+    </li>
+    {% endif %}
+
+    <!-- Tasks: only admin/manager (or adjust to your policy) -->
+    {% if current_user.is_authenticated and current_user.role in ['admin','manager'] %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('tasks') }}"><i class="fas fa-tasks me-2"></i>Tasks</a>
+    </li>
+    {% endif %}
+
+    <!-- Supplies: only admin/manager (no storekeeper) -->
+    {% if current_user.is_authenticated and current_user.role in ['admin','manager'] %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('supplies') }}"><i class="fas fa-truck-loading me-2"></i>Supplies</a>
+    </li>
+    {% endif %}
+
+    <!-- Staff / Admin tools: admin only -->
+    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('staff') }}"><i class="fas fa-users-cog me-2"></i>Staff</a>
+    </li>
+    {% endif %}
+
+    <!-- Common links for authenticated users -->
+    {% if current_user.is_authenticated %}
+    <li class="nav-item mt-3">
+      <a class="nav-link text-muted" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+
 </script>
 
 </body>
