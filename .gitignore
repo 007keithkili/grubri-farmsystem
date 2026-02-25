@@ -1,13 +1,18 @@
-﻿venv/
+﻿# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 env/
-node_modules/
-static/exports/
+venv/
+ENV/
+env.bak/
 *.sqlite3
-*.db
-.DS_Store
+
+# VS Code
 .vscode/
-.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db

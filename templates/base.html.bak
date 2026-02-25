@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Grubri-farmsystem - {% block title %}Dashboard{% endblock %}</title>
+    <title>DL Farm Management - {% block title %}Dashboard{% endblock %}</title>
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -222,16 +222,11 @@
 
     <!-- Sidebar -->
     <nav id="sidebar">
-       <div class="sidebar-header" style="display: flex; align-items: center; gap: 10px; padding: 15px;">
-    <img src="https://i.pinimg.com/736x/54/26/e3/5426e33c7435ac9f364dc8cbae6f8012.jpg"
-         alt="Grubri Farm"
-         style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #f7f0f0;">
-    <div>
-        <h3 style="margin: 0; font-size: 1.6rem; font-weight: bold;">GRUBRI FARM</h3>
-        
-        <p style="margin: 0; font-style: italic; font-size: 0.85rem; color: #f2f6f7;">Purpose in every season</p>
-    </div>
-</div>
+        <div class="sidebar-header">
+            <h3><i class="fas fa-tractor"></i> DL Farm</h3>
+            <p>Raising animals with care</p>
+        </div>
+
         <div class="sidebar-menu">
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -473,8 +468,8 @@
 
         <!-- Footer -->
         <div class="footer">
-            <p class="mb-1">Grubri-farmsystem .Quantum Solutions • 2026 • All rights reserved</p>
-            <p class="mb-0">Farm Administrator • Grubri Farm</p>
+            <p class="mb-1">DL Farm Management System .Quantum Solutions • 2025 • All rights reserved</p>
+            <p class="mb-0">Farm Administrator • DL Farm</p>
         </div>
     </div>
 

@@ -1,0 +1,809 @@
+﻿{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block page_subtitle %}Performance overview - {{ start_date|default('') }}{% if end_date %} - {{ end_date }}{% else %} (last 30 days){% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ===== Overall layout adjustments ===== */
+.container-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 380px; /* main column + right rail */
+  gap: 22px;
+  align-items: start;
+}
+
+/* When narrow, single column */
+@media (max-width:1100px){
+  .container-dashboard { grid-template-columns: 1fr; }
+}
+
+/* ===== Left hero / header ===== */
+.hero-banner {
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f766e 0%, #10b981 100%);
+  color: #fff;
+  padding: 28px 28px;
+  margin-bottom: 18px;
+  box-shadow: 0 12px 36px rgba(2, 6, 23, 0.12);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+}
+.hero-left h1 { font-weight:800; margin:0; font-size:1.7rem; }
+.hero-left p { margin:0.25rem 0 0 0; opacity:0.95; }
+/* small overview box on right */
+.hero-meta {
+  background: rgba(255,255,255,0.08);
+  padding:10px 12px;
+  border-radius:10px;
+  text-align:right;
+}
+.hero-meta small { display:block; opacity:0.9; font-size:0.85rem; color:rgba(255,255,255,0.9); }
+.hero-meta .period { font-weight:700; font-size:0.95rem; color:#fff; }
+
+/* ===== KPI GRID style ===== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+@media (max-width:900px){ .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width:560px){ .kpi-grid { grid-template-columns: 1fr; } }
+
+.kpi {
+  border-radius: 12px;
+  padding: 14px;
+  display:flex;
+  gap:12px;
+  align-items:center;
+  background: linear-gradient(180deg,#fff,#fbfdff);
+  box-shadow: 0 8px 22px rgba(2,6,23,0.04);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.kpi:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(3,10,28,0.07); }
+.kpi .icon {
+  min-width:64px; min-height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px;
+  color: #fff;
+}
+.kpi .meta small { color:#6b7280; display:block; font-size:0.85rem; }
+.kpi .meta .value { font-weight:800; font-size:1.4rem; margin-top:6px; color:#0b2540; }
+
+/* icon color variants */
+.icon.paw { background: linear-gradient(135deg,#34d399,#059669); }
+.icon.profit { background: linear-gradient(135deg,#86efac,#16a34a); color:#052e10; }
+.icon.feed { background: linear-gradient(135deg,#ffd29e,#fb923c); color:#3b1700; }
+.icon.staff { background: linear-gradient(135deg,#bfdbfe,#60a5fa); color:#05204a; }
+.icon.med { background: linear-gradient(135deg,#fbcfe8,#fda4af); color:#3b0b17; }
+.icon.manage { background: linear-gradient(135deg,#e6eefc,#c7d2fe); color:#08204b; }
+
+/* ===== Export panel styling ===== */
+.export-panel {
+  background: linear-gradient(90deg, rgba(2,132,199,0.03), rgba(16,185,129,0.02));
+  border-radius: 10px;
+  padding: 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:16px;
+  box-shadow: 0 6px 22px rgba(3,10,28,0.03);
+  flex-wrap:wrap;
+}
+.export-left { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.export-right { display:flex; gap:8px; align-items:center; }
+
+/* controls smaller and compact */
+.export-panel input.form-control, .export-panel .form-select { font-size:0.85rem; padding:8px 10px; }
+
+/* ===== Right rail (performance + quick card) ===== */
+.right-rail {
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.rail-card {
+  background: linear-gradient(180deg,#ffffff,#fbfdff);
+  border-radius:12px;
+  padding:16px;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.04);
+}
+.performance-figure { text-align:center; padding:10px 0; }
+.performance-figure .big { font-size:1.6rem; font-weight:900; color:#064e3b; }
+.performance-figure .sub { color:#6b7280; font-size:0.9rem; }
+
+/* recent list */
+.activity-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; max-height:220px; overflow:auto; }
+.activity-item { display:flex; gap:10px; align-items:center; padding:8px; border-radius:10px; background: rgba(2,6,23,0.02); }
+.activity-item .dot { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; }
+
+/* ===== Large charts card ===== */
+.card-graph { border-radius:12px; padding:14px; background:#fff; box-shadow: 0 10px 28px rgba(2,6,23,0.04); }
+.card-graph h6 { margin:0 0 8px 0; font-weight:700; color:#0b25440; }
+.chart-lg { min-height:360px; height:380px !important; }
+.chart-medium { min-height:200px; height:220px !important; }
+.chart-sm { min-height:160px; height:180px !important; }
+
+.card-graph h6 { color:#0b2540; }
+
+/* small numeric blocks under graph */
+.small-stats { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.small-stat {
+  background:linear-gradient(180deg,#fff,#fbfdff);
+  padding:10px 12px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.03); min-width:120px;
+}
+.small-stat .num { font-weight:800; font-size:1.05rem; color:#052e1e; }
+
+/* task counts */
+.task-count { font-weight:800; font-size:1.4rem; color:#042433; }
+
+/* subtle footer text */
+.card .muted { color:#6b7280; font-size:0.85rem; }
+
+/* keep canvases responsive inside cards */
+.card canvas { width:100% !important; height: auto !important; }
+
+/* ===== New charts (bottom) small styles ===== */
+.bottom-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 18px;
+}
+@media (max-width:900px){ .bottom-charts { grid-template-columns: 1fr; } }
+.small-card { border-radius:12px; padding:12px; background:#fff; box-shadow: 0 8px 22px rgba(2,6,23,0.04); }
+.small-card h6 { margin:0 0 8px 0; font-weight:700; color:#0b25440; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero-banner">
+  <div class="hero-left">
+    <h1>DL Farm Management System</h1>
+    <p>Insights – financials, production, livestock and operations in one place.</p>
+  </div>
+  <div class="hero-meta">
+    <small>Overview period</small>
+    <div class="period">{{ start_date|default('Last 30 days') }}{% if end_date %} – {{ end_date }}{% endif %}</div>
+  </div>
+</div>
+
+<div class="export-panel">
+  <div class="export-left">
+    <div>
+      <label class="form-label small mb-1">Start</label>
+      <input id="startDate" type="date" class="form-control form-control-sm" value="{{ start_date|default('') }}">
+    </div>
+    <div>
+      <label class="form-label small mb-1">End</label>
+      <input id="endDate" type="date" class="form-control form-control-sm" value="{{ end_date|default('') }}">
+    </div>
+    <div>     
+      <select id="reportType" class="form-select form-select-sm">
+        <option value="comprehensive">Comprehensive</option>
+        <option value="financial">Financial</option>
+        <option value="livestock">Livestock</option>
+        <option value="production">Production</option>
+        <option value="inventory">Inventory</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+    <div style="align-self:end;">
+      <button id="generateBtn" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+  </div>
+
+  <div class="export-right">
+    <button id="exportCsv" class="btn btn-outline-primary btn-sm">Export CSV</button>
+    <button id="exportExcel" class="btn btn-outline-success btn-sm">Export Excel</button>
+    <button id="exportPdf" class="btn btn-outline-danger btn-sm">Export PDF</button>
+    <button id="printBtn" class="btn btn-outline-secondary btn-sm">Print</button>
+  </div>
+</div>
+
+<div class="container-dashboard">
+  <div> <!-- main column -->
+    <!-- KPI GRID -->
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="icon paw"><i class="fas fa-paw"></i></div>
+        <div class="meta">
+          <small>Total Animals</small>
+          <div class="value">{{ total_animals|default(0) }}</div>
+          <small class="muted">head</small>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="icon profit"><i class="fas fa-chart-line"></i></div>
+        <div class="meta">
+          <small>Net Profit</small>
+          <div class="value">Ksh {{ '%.2f' % (net_profit|default(0)) }}</div>
+          <small class="muted">Period</small>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="icon feed"><i class="fas fa-seedling"></i></div>
+        <div class="meta">
+          <small>Feed Consumed</small>
+          <div class="value">{{ (feed_series|default([]) | sum) }}</div>
+          <small class="muted">kg (range)</small>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="icon staff"><i class="fas fa-users"></i></div>
+        <div class="meta">
+          <small>Total Staff</small>
+          <div class="value">{{ total_staff|default(0) }}</div>
+          <small class="muted">employees</small>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="icon med"><i class="fas fa-notes-medical"></i></div>
+        <div class="meta">
+          <small>Medical Records</small>
+          <div class="value">{{ medical_count|default(0) }}</div>
+          <small class="muted">records</small>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="icon manage"><i class="fas fa-user-tie"></i></div>
+        <div class="meta">
+          <small>Staff Management</small>
+          <div class="value">{{ total_staff|default(0) }}</div>
+          <small class="muted">manage staff</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Trend -->
+    <div class="card-graph mb-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6>Financial Trend</h6>
+        <small class="muted">Period: {{ start_date|default('') }} – {{ end_date|default('') }}</small>
+      </div>
+      <canvas id="chartFinancial" class="chart-lg"></canvas>
+
+      <div class="small-stats">
+        <div class="small-stat">
+          <div class="muted">Total Income</div>
+          <div class="num">Ksh {{ '%.2f' % (total_income|default(0)) }}</div>
+        </div>
+        <div class="small-stat">
+          <div class="muted">Total Expense</div>
+          <div class="num">Ksh {{ '%.2f' % (total_expense|default(0)) }}</div>
+        </div>
+        <div class="small-stat">
+          <div class="muted">Net Profit</div>
+          <div class="num">Ksh {{ '%.2f' % (net_profit|default(0)) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Status + smaller charts row -->
+    <div class="row g-3">
+      <div class="col-md-6" style="padding:0;">
+        <div class="card-graph mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <h6>Task Status</h6>
+            <small class="muted">Overview</small>
+          </div>
+          <div class="row align-items-center">
+            <div class="col-6">
+              <canvas id="chartTasks" class="chart-medium"></canvas>
+            </div>
+            <div class="col-6">
+              <div>
+                <div class="muted">Pending</div>
+                <div class="task-count">{{ task_counts.Pending|default(0) }}</div>
+              </div>
+              <div class="mt-3">
+                <div class="muted">In Progress</div>
+                <div class="task-count">{{ task_counts['In Progress']|default(0) }}</div>
+              </div>
+              <div class="mt-3">
+                <div class="muted">Completed</div>
+                <div class="task-count">{{ task_counts.Completed|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6" style="padding:0;">
+        <div class="card-graph mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <h6>Daily Feed Consumption</h6>
+            <small class="muted">kg per day</small>
+          </div>
+          <canvas id="chartFeed" class="chart-sm"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-3">
+      <div class="col-md-6" style="padding:0;">
+        <div class="card-graph">
+          <h6>Average Weight Trend</h6>
+          <canvas id="chartWeight" class="chart-sm"></canvas>
+        </div>
+      </div>
+
+      <div class="col-md-6" style="padding:0;">
+        <div class="card-graph">
+          <h6>Notes & Quick Actions</h6>
+          <p class="muted">Use the quick actions below to open common tools.</p>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary btn-sm" href="#">Financial</a>
+            <a class="btn btn-outline-primary btn-sm" href="#">Livestock</a>
+            <a class="btn btn-outline-primary btn-sm" href="#">Production</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ------------------- NEW: Additional displays appended at bottom (render only if backend provided data) ------------------- #}
+    {% set has_production = production_labels is defined and production_labels|length and production_values is defined and production_values|length %}
+    {% set has_weekly = weekly_labels is defined and weekly_labels|length and weekly_values is defined and weekly_values|length %}
+    {% if has_production or has_weekly %}
+    <div class="bottom-charts">
+      {% if has_production %}
+      <div class="small-card">
+        <h6>Production – Top Categories</h6>
+        <p class="muted">Top production categories by value (data from DB required).</p>
+        <canvas id="chartProduction" style="height:260px;"></canvas>
+      </div>
+      {% endif %}
+
+      {% if has_weekly %}
+      <div class="small-card">
+        <h6>Weekly Activity Snapshot</h6>
+        <p class="muted">Activity across the week (last 7 days). Updates to include the current day if present.</p>
+        <canvas id="chartWeekly" style="height:260px;"></canvas>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {# ------------------- END NEW DISPLAYS ------------------- #}
+  </div>
+
+  <!-- RIGHT RAIL -->
+  <aside class="right-rail">
+    <div class="rail-card">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+          <h6 style="margin:0;">Total View Performance</h6>
+          <small class="muted">Overview metrics</small>
+        </div>
+        <div style="text-align:right;">
+          <div class="big">Ksh {{ '%.0f' % ((total_income|default(0)) - (total_expense|default(0))) }}</div>
+          <div class="muted">Net</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
+        <canvas id="performanceDonut" style="width:120px; height:120px;"></canvas>
+        <div style="flex:1;">
+          <div class="muted">Guide Views</div>
+          <div style="font-weight:700; margin-top:6px;">{{ (total_animals|default(0)) + (total_staff|default(0)) }} items</div>
+          <div class="muted" style="margin-top:8px;">Improve your score with focused checks</div>
+        </div>
+      </div>
+    </div>
+
+    {# REPLACED: dynamic Recent Activity (from DB) #}
+    <div class="rail-card">
+      <h6 style="margin:0 0 8px 0;">Recent Activity</h6>
+      <ul class="activity-list">
+        {% for act in recent_activity %}
+          <li class="activity-item">
+            <div class="dot" style="background:
+                 {% if act.badge == 'A' %}#34d399
+                 {% elif act.badge == 'S' %}#60a5fa
+                 {% elif act.badge == 'F' %}#f97316
+                 {% elif act.badge == 'M' %}#fb7185
+                 {% else %}#94a3b8
+                 {% endif %}">{{ act.badge }}</div>
+            <div>
+              <strong>{{ act.title }}</strong>
+              <div class="muted">{{ act.time_ago }}{% if act.subtitle %} – {{ act.subtitle }}{% endif %}</div>
+            </div>
+          </li>
+        {% else %}
+          <li class="activity-item">
+            <div class="dot" style="background:#94a3b8">–</div>
+            <div><strong>No recent activity</strong><div class="muted">No events found</div></div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="rail-card">
+      <h6 style="margin:0 0 8px 0;">Quick Export</h6>
+      <p class="muted">Create printable or downloadable data for stakeholders.</p>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary btn-sm" id="btnExportPdf">Export PDF</button>
+        <button class="btn btn-outline-primary btn-sm" id="btnExportExcel">Export Excel</button>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  /***** SANITIZE & ALIGN SERIES (do this before creating any charts) *****/
+
+  // Raw arrays from template (server must supply these exact names)
+  const rawDays = {{ days|default([])|tojson }};
+  const rawIncome = {{ income_series|default([])|tojson }};
+  const rawExpense = {{ expense_series|default([])|tojson }};
+  const rawFeed = {{ feed_series|default([])|tojson }};
+  const rawAvgWeight = {{ avg_weight_series|default([])|tojson }};
+  const taskCounts = {{ task_counts|default({'Pending':0,'In Progress':0,'Completed':0})|tojson }};
+
+  // Optional: latest metrics injected by backend (object) or empty
+  const latestDayFromTemplate = "{{ latest_day|default('') }}";
+  const latestMetricsFromTemplate = {{ latest_metrics|default({})|tojson }};
+
+  // Optional production/weekly data from backend (may be undefined/empty)
+  const productionLabelsTemplate = {{ production_labels|default([])|tojson }};
+  const productionValuesTemplate = {{ production_values|default([])|tojson }};
+  const weeklyLabelsTemplate = {{ weekly_labels|default([])|tojson }};
+  const weeklyValuesTemplate = {{ weekly_values|default([])|tojson }};
+
+  // Server-provided reliable totals (use these for displays and the donut)
+  const totalIncomeFromServer = Number({{ total_income|default(0)|tojson }});
+  const totalExpenseFromServer = Number({{ total_expense|default(0)|tojson }});
+
+  // Helper: coerce values to numbers, keep 0 for invalid values
+  function toNumberArray(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(v => {
+      if (v === null || v === undefined || v === '') return 0;
+      if (typeof v === 'object') {
+        // If backend accidentally sent small objects (safer to guard), try common numeric props
+        for (const k of ['value','y','amount','qty','count']) {
+          if (v[k] !== undefined && v[k] !== null) return Number(v[k]) || 0;
+        }
+        return 0;
+      }
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    });
+  }
+
+  // Detect ISO date-like strings (YYYY-MM-DD)
+  function isLikelyDateString(s){
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s);
+  }
+
+  // Normalize: zip arrays, sort by day (if date-like), and return aligned arrays
+  function normalizeSeries(daysArr, incArr, expArr, feedArr, wArr){
+    const daysCopy = Array.isArray(daysArr) ? daysArr.slice() : [];
+    const inc = toNumberArray(incArr);
+    const exp = toNumberArray(expArr);
+    const feed = toNumberArray(feedArr);
+    const w = toNumberArray(wArr);
+
+    if (daysCopy.length && isLikelyDateString(daysCopy[0])) {
+      // Zip up to the max length and allow missing numeric values as 0
+      const maxLen = Math.max(daysCopy.length, inc.length, exp.length, feed.length, w.length);
+      const zipped = [];
+      for (let i=0;i<maxLen;i++){
+        zipped.push({
+          day: daysCopy[i] !== undefined && daysCopy[i] !== null ? String(daysCopy[i]) : null,
+          income: inc[i] !== undefined ? inc[i] : 0,
+          expense: exp[i] !== undefined ? exp[i] : 0,
+          feed: feed[i] !== undefined ? feed[i] : 0,
+          avgWeight: w[i] !== undefined ? w[i] : 0
+        });
+      }
+      // Keep entries that have day defined, sort them, then append any without day (if any)
+      const withDay = zipped.filter(z => z.day);
+      const withoutDay = zipped.filter(z => !z.day);
+      withDay.sort((a,b) => (a.day > b.day ? 1 : (a.day < b.day ? -1 : 0)));
+      const final = withDay.concat(withoutDay);
+      return {
+        days: final.map(x => x.day || ''),
+        income: final.map(x => x.income || 0),
+        expense: final.map(x => x.expense || 0),
+        feed: final.map(x => x.feed || 0),
+        avgWeight: final.map(x => x.avgWeight || 0)
+      };
+    }
+
+    // If days are not date-like: align by shortest length (safer)
+    const minLen = Math.min(
+      Array.isArray(daysCopy) ? daysCopy.length : 0,
+      inc.length,
+      exp.length,
+      feed.length,
+      w.length
+    );
+    if (minLen > 0) {
+      return {
+        days: daysCopy.slice(0,minLen).map(String),
+        income: inc.slice(0,minLen),
+        expense: exp.slice(0,minLen),
+        feed: feed.slice(0,minLen),
+        avgWeight: w.slice(0,minLen)
+      };
+    }
+
+    // Fallback: if days empty but numeric arrays exist, create placeholder labels 'pt1'..'ptN' to preserve indices
+    const maxLen = Math.max(daysCopy.length, inc.length, exp.length, feed.length, w.length);
+    const daysOut = [];
+    const incOut = [], expOut = [], feedOut = [], wOut = [];
+    for (let i=0;i<maxLen;i++){
+      daysOut.push(daysCopy[i] !== undefined && daysCopy[i] !== null ? String(daysCopy[i]) : `pt${i+1}`);
+      incOut.push(inc[i] !== undefined ? inc[i] : 0);
+      expOut.push(exp[i] !== undefined ? exp[i] : 0);
+      feedOut.push(feed[i] !== undefined ? feed[i] : 0);
+      wOut.push(w[i] !== undefined ? w[i] : 0);
+    }
+    return { days: daysOut, income: incOut, expense: expOut, feed: feedOut, avgWeight: wOut };
+  }
+
+  // Run normalization
+  const normalized = normalizeSeries(rawDays, rawIncome, rawExpense, rawFeed, rawAvgWeight);
+
+  // Provide console warnings for debugging on mismatches
+  function logIfMismatch(label, arr, labels){
+    if (!Array.isArray(arr) || !Array.isArray(labels)) return;
+    if (arr.length !== labels.length) {
+      console.warn(`${label} length (${arr.length}) != labels length (${labels.length}). Data was sanitized/trimmed/padded by normalizer.`);
+    }
+    console.debug(`${label} preview:`, arr.slice(0,8));
+  }
+  logIfMismatch('income', normalized.income, normalized.days);
+  logIfMismatch('expense', normalized.expense, normalized.days);
+  logIfMismatch('feed', normalized.feed, normalized.days);
+  logIfMismatch('avgWeight', normalized.avgWeight, normalized.days);
+
+  // Final arrays used by chart creation below
+  const days = normalized.days;
+  const income = normalized.income;
+  const expense = normalized.expense;
+  const feed = normalized.feed;
+  const avgWeight = normalized.avgWeight;
+
+  /***** END SANITIZATION; NOW CREATE CHARTS (using sanitized arrays) *****/
+
+  // Financial trend
+  const finCtx = document.getElementById('chartFinancial');
+  if (finCtx) {
+    window.finChart = new Chart(finCtx, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          { label: 'Income', data: income, borderColor:'#16a34a', backgroundColor:'rgba(16,163,127,0.12)', fill:true, tension:0.3, pointRadius:3, pointHoverRadius:5 },
+          { label: 'Expense', data: expense, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.08)', fill:true, tension:0.3, pointRadius:3, pointHoverRadius:5 }
+        ]
+      },
+      options: {
+        plugins:{ legend:{ position:'bottom' }, tooltip:{ mode:'index', intersect:false } },
+        interaction:{ mode:'nearest', axis:'x', intersect:false },
+        scales:{ y:{ beginAtZero:true, ticks:{ callback: v => v } } }
+      }
+    });
+  }
+
+  // Tasks donut
+  const tCtx = document.getElementById('chartTasks');
+  if (tCtx) {
+    new Chart(tCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pending','In Progress','Completed'],
+        datasets: [{
+          data: [taskCounts.Pending||0, taskCounts['In Progress']||0, taskCounts.Completed||0],
+          backgroundColor: ['#f59e0b','#3b82f6','#10b981']
+        }]
+      },
+      options: { plugins:{ legend:{ position:'bottom' } } }
+    });
+  }
+
+  // Feed bar
+  const fCtx = document.getElementById('chartFeed');
+  if (fCtx) {
+    window.feedChart = new Chart(fCtx, {
+      type: 'bar',
+      data: { labels: days, datasets: [{ label:'Feed (kg)', data: feed, backgroundColor:'#f97316' }] },
+      options: { plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+
+  // Weight line
+  const wCtx = document.getElementById('chartWeight');
+  if (wCtx) {
+    window.weightChart = new Chart(wCtx, {
+      type: 'line',
+      data: { labels: days, datasets: [{ label:'Avg weight (kg)', data: avgWeight, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,0.08)', fill:true, tension:0.25 }] },
+      options: { plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+
+  // Performance donut on right rail (use server totals to avoid mismatch)
+  const perfCtx = document.getElementById('performanceDonut');
+  if (perfCtx) {
+    new Chart(perfCtx, {
+      type: 'doughnut',
+      data: {
+        labels:['Income','Expense'],
+        datasets:[{ data:[totalIncomeFromServer || 0, totalExpenseFromServer || 0], backgroundColor:['#10b981','#ef4444'] }]
+      },
+      options:{ cutout: '70%', plugins:{ legend:{ display:false } } }
+    });
+  }
+
+  // EXPORT helper - neutralised to avoid server url_for lookups
+  window.postReport = function(format){
+    const start = document.getElementById('startDate')?.value || '';
+    const end = document.getElementById('endDate')?.value || '';
+    const type = document.getElementById('reportType')?.value || 'comprehensive';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '#';  // neutralised: no server endpoint called
+    form.style.display='none';
+    [['start_date',start],['end_date',end],['report_type',type],['format',format]].forEach(([n,v]) => {
+      const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i);
+    });
+    document.body.appendChild(form); form.submit();
+  };
+
+  document.getElementById('exportCsv')?.addEventListener('click', ()=>postReport('csv'));
+  document.getElementById('exportExcel')?.addEventListener('click', ()=>postReport('excel'));
+  document.getElementById('exportPdf')?.addEventListener('click', ()=>postReport('pdf'));
+  document.getElementById('printBtn')?.addEventListener('click', ()=> window.print());
+
+  // Apply filter (reload with params so backend re-renders)
+  document.getElementById('generateBtn')?.addEventListener('click', function(){
+    const s = document.getElementById('startDate')?.value;
+    const e = document.getElementById('endDate')?.value;
+    const p = new URLSearchParams();
+    if (s) p.set('start', s);
+    if (e) p.set('end', e);
+    const url = window.location.pathname + (p.toString() ? ('?' + p.toString()) : '');
+    window.location.href = url;
+  });
+
+  /***** OPTIONAL: Append latest single-day metrics if backend provided them *****/
+  function tryAppendLatestPoint(latestObj){
+    try {
+      if (!latestObj) return;
+      const newDay = latestObj.day || latestObj.date;
+      if (!newDay) return;
+      const lastDisplayed = (days && days.length) ? days[days.length-1] : null;
+      // Only append if different/newer than last displayed
+      if (newDay && newDay !== lastDisplayed) {
+        days.push(newDay);
+        income.push(Number(latestObj.income || 0));
+        expense.push(Number(latestObj.expense || 0));
+        feed.push(Number(latestObj.feed || 0));
+        avgWeight.push(Number(latestObj.avgWeight || 0));
+        // Update charts that rely on these arrays
+        if (window.finChart) { window.finChart.data.labels = days; window.finChart.data.datasets[0].data = income; window.finChart.data.datasets[1].data = expense; window.finChart.update(); }
+        if (window.feedChart) { window.feedChart.data.labels = days; window.feedChart.data.datasets[0].data = feed; window.feedChart.update(); }
+        if (window.weightChart) { window.weightChart.data.labels = days; window.weightChart.data.datasets[0].data = avgWeight; window.weightChart.update(); }
+      }
+    } catch (e) {
+      console.warn('Error appending latest metrics:', e);
+    }
+  }
+
+  // Try template-provided latest metrics first
+  if (latestDayFromTemplate && latestMetricsFromTemplate && latestMetricsFromTemplate.day === latestDayFromTemplate) {
+    tryAppendLatestPoint(Object.assign({}, latestMetricsFromTemplate, { day: latestDayFromTemplate }));
+  } else if (latestMetricsFromTemplate && latestMetricsFromTemplate.day) {
+    tryAppendLatestPoint(latestMetricsFromTemplate);
+  } else if (latestDayFromTemplate && !latestMetricsFromTemplate.day) {
+    // Backend provided latest day string only: append a zero-valued point (safer than faking data)
+    tryAppendLatestPoint({ day: latestDayFromTemplate, income:0, expense:0, feed:0, avgWeight:0 });
+  }
+
+  /***** NEW CHARTS: create only if backend provided production/weekly arrays (no placeholders) *****/
+  // Production chart only if backend supplied both labels and values arrays
+  if (Array.isArray(productionLabelsTemplate) && productionLabelsTemplate.length
+      && Array.isArray(productionValuesTemplate) && productionValuesTemplate.length) {
+    const prodCtx = document.getElementById('chartProduction');
+    if (prodCtx) {
+      // coerce values to numbers
+      const prodVals = toNumberArray(productionValuesTemplate);
+      window.prodChart = new Chart(prodCtx, {
+        type: 'bar',
+        data: {
+          labels: productionLabelsTemplate,
+          datasets: [{
+            label: 'Value',
+            data: prodVals,
+            backgroundColor: '#f59e0b'
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend: { display: false }, tooltip: { mode: 'nearest' } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+    }
+  } else {
+    console.debug('Production chart not rendered: production_labels/production_values not provided by backend.');
+  }
+
+  // Weekly chart only if backend supplied both labels and values arrays
+  if (Array.isArray(weeklyLabelsTemplate) && weeklyLabelsTemplate.length
+      && Array.isArray(weeklyValuesTemplate) && weeklyValuesTemplate.length) {
+    const weeklyCtx = document.getElementById('chartWeekly');
+    if (weeklyCtx) {
+      const wVals = toNumberArray(weeklyValuesTemplate);
+      window.weeklyChart = new Chart(weeklyCtx, {
+        type: 'line',
+        data: {
+          labels: weeklyLabelsTemplate,
+          datasets: [{
+            label: 'Activity',
+            data: wVals,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.08)',
+            fill: true,
+            tension: 0.25,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  } else {
+    console.debug('Weekly chart not rendered: weekly_labels/weekly_values not provided by backend.');
+  }
+
+  // If latest_metrics provided production/weekly overrides, update those charts (safe guard)
+  if (latestMetricsFromTemplate && typeof latestMetricsFromTemplate === 'object') {
+    try {
+      if (latestMetricsFromTemplate.production_labels && latestMetricsFromTemplate.production_values && window.prodChart) {
+        window.prodChart.data.labels = latestMetricsFromTemplate.production_labels;
+        window.prodChart.data.datasets[0].data = toNumberArray(latestMetricsFromTemplate.production_values);
+        window.prodChart.update();
+      }
+      if (latestMetricsFromTemplate.weekly_labels && latestMetricsFromTemplate.weekly_values && window.weeklyChart) {
+        window.weeklyChart.data.labels = latestMetricsFromTemplate.weekly_labels;
+        window.weeklyChart.data.datasets[0].data = toNumberArray(latestMetricsFromTemplate.weekly_values);
+        window.weeklyChart.update();
+      }
+    } catch(e) { console.warn('Error applying latest metrics production/weekly overrides', e); }
+  }
+
+  // Expose safe function to manually append metrics from other client code (e.g., after an AJAX post)
+  window.appendLatestMetrics = function(obj){
+    // expects { day: 'YYYY-MM-DD', income: n, expense: n, feed: n, avgWeight: n, production_labels:[], production_values:[], weekly_labels:[], weekly_values:[] }
+    tryAppendLatestPoint(obj);
+    if (obj.production_labels && obj.production_values && window.prodChart) {
+      window.prodChart.data.labels = obj.production_labels;
+      window.prodChart.data.datasets[0].data = toNumberArray(obj.production_values);
+      window.prodChart.update();
+    }
+    if (obj.weekly_labels && obj.weekly_values && window.weeklyChart) {
+      window.weeklyChart.data.labels = obj.weekly_labels;
+      window.weeklyChart.data.datasets[0].data = toNumberArray(obj.weekly_values);
+      window.weeklyChart.update();
+    }
+  };
+
+  /***** END JS *****/
+})();
+</script>
+{% endblock %}

@@ -507,9 +507,10 @@ def logout():
 def dashboard():
     """
     Dashboard route: robustly computes KPIs and time-series used by dashboard.html.
-    - Safely handles variations in column names / transaction_date vs created_at, transaction_type casing, and negative amounts.
-    - Returns exactly the same template variables as before so other code remains unchanged.
+    - Safely handles variations in column names / transaction_type casing / negative amounts.
+    - Does not change other app code; simply returns the same template variables.
     """
+    # local imports to avoid changing top-of-file imports
     from datetime import date, datetime, timedelta
 
     conn = get_db_connection()
@@ -565,67 +566,55 @@ def dashboard():
         days.append(cur_day.isoformat())
         cur_day = cur_day + timedelta(days=1)
 
-    # --- Helpers to detect an appropriate date expression and to run robust date-sum queries ---
-    def detect_date_expr(table_name):
-        """
-        Returns a SQL expression like:
-        DATE(COALESCE(NULLIF(transaction_date,''), NULLIF(created_at,'')))
-        or None if no date-like column exists on the table.
-        Prefers (in order): transaction_date, created_at, date, entry_date, record_date.
-        """
+    # --- Helpers to inspect table columns and perform robust date-sum queries ---
+    def table_columns(table_name):
+        """Return set of column names for table (lowercased)."""
         try:
             cur.execute(f"PRAGMA table_info({table_name})")
-            cols_info = cur.fetchall()  # list of rows, r[1] is column name
-            col_names_raw = [r[1] for r in cols_info]
-            col_names_lower = [r[1].lower() for r in cols_info]
+            cols = {r[1].lower() for r in cur.fetchall()}
+            return cols
         except Exception:
-            return None
+            return set()
 
-        preferred = ['transaction_date', 'created_at', 'date', 'entry_date', 'record_date']
-        # find preferred existing columns (preserve raw names)
-        existing_raw = []
-        for pref in preferred:
-            for raw, low in zip(col_names_raw, col_names_lower):
-                if low == pref and raw not in existing_raw:
-                    existing_raw.append(raw)
-                    break
-
-        # if none of preferred found, try any column containing 'date'
-        if not existing_raw:
-            for raw, low in zip(col_names_raw, col_names_lower):
-                if 'date' in low and raw not in existing_raw:
-                    existing_raw.append(raw)
-
-        if not existing_raw:
-            return None
-
-        # build COALESCE list that ignores empty strings (NULLIF(...,''))
-        coalesce_args = ", ".join(f"NULLIF({col},'')" for col in existing_raw)
-        return f"DATE(COALESCE({coalesce_args}))"
-
-    def query_date_sum_using_expr(table, value_expr, extra_where='', params=()):
+    def choose_date_column(table_name, preferred):
         """
-        Uses detect_date_expr to produce date-based sums.
-        Returns dict mapping 'YYYY-MM-DD' -> summed value.
-        Defensive: ABS() for amount/quantity-like fields, returns {} if table/date not found.
+        Choose a date column existing in the table.
+        Try preferred first, then fallbacks.
         """
-        date_expr = detect_date_expr(table)
-        if not date_expr:
+        cols = table_columns(table_name)
+        candidates = [preferred, 'transaction_date', 'created_at', 'date', 'entry_date', 'record_date']
+        for c in candidates:
+            if c and c.lower() in cols:
+                return c
+        # if none found, raise so caller can handle
+        raise RuntimeError(f"No suitable date column found for table '{table_name}' (checked: {candidates})")
+
+    def query_date_sum(table, date_col_hint, value_expr, extra_where='', params=()):
+        """
+        Return dict { 'YYYY-MM-DD': value } for the given table/value using the best date column detected.
+        Uses ABS() for amount/quantity to be defensive about sign.
+        """
+        try:
+            date_col = choose_date_column(table, date_col_hint)
+        except Exception:
+            # If table doesn't exist or no date column, return empty mapping
             return {}
 
         # choose whether to ABS the summed expression (money/quantity)
-        low_val = value_expr.lower()
-        if 'amount' in low_val or 'qty' in low_val or 'quantity' in low_val:
-            sum_expr = f"COALESCE(SUM(ABS({value_expr})), 0)"
+        if 'amount' in value_expr.lower() or 'qty' in value_expr.lower() or 'quantity' in value_expr.lower():
+            sum_expr = f"COALESCE(SUM(ABS({value_expr})),0)"
         else:
-            sum_expr = f"COALESCE(SUM({value_expr}), 0)"
+            sum_expr = f"COALESCE(SUM({value_expr}),0)"
 
-        where_fragment = f"AND ({extra_where})" if extra_where else ""
+        where_clause = ""
+        if extra_where:
+            where_clause = "AND " + extra_where
+
         q = f"""
-            SELECT {date_expr} AS d, {sum_expr} AS val
+            SELECT DATE({date_col}) as d, {sum_expr} as val
             FROM {table}
-            WHERE {date_expr} BETWEEN ? AND ?
-            {where_fragment}
+            WHERE DATE({date_col}) BETWEEN ? AND ?
+            {where_clause}
             GROUP BY d
             ORDER BY d
         """
@@ -636,7 +625,8 @@ def dashboard():
         except Exception:
             return {}
 
-    # --- Financial totals: robust type matching (shared label lists) ---
+    # --- Financial totals: robust type matching ---
+    # accept several common labels for income/expense so real DB values are captured
     income_labels = ("income", "sale", "sales", "payment", "payment_received", "receipt")
     expense_labels = ("expense", "purchase", "purchases", "cost", "payment_made", "expense_paid")
 
@@ -644,39 +634,40 @@ def dashboard():
     income_list_sql = ",".join(f"'{lab}'" for lab in income_labels)
     expense_list_sql = ",".join(f"'{lab}'" for lab in expense_labels)
 
+    # Extra WHERE fragments: compare LOWER(TRIM(transaction_type)) against lists
     income_where = f"LOWER(TRIM(transaction_type)) IN ({income_list_sql})"
     expense_where = f"LOWER(TRIM(transaction_type)) IN ({expense_list_sql})"
 
     try:
-        # use the new helper which prefers transaction_date then created_at and uses COALESCE(NULLIF(...),'')
-        income_map = query_date_sum_using_expr('financial', 'amount', extra_where=income_where)
-        expense_map = query_date_sum_using_expr('financial', 'amount', extra_where=expense_where)
+        income_map = query_date_sum('financial', 'transaction_date', 'amount', income_where)
+        expense_map = query_date_sum('financial', 'transaction_date', 'amount', expense_where)
     except Exception:
         income_map = {}
         expense_map = {}
 
     # --- Feed series (quantity sums) ---
     try:
-        feed_map = query_date_sum_using_expr('feed', 'quantity')
+        feed_map = query_date_sum('feed', 'created_at', 'quantity')
     except Exception:
         feed_map = {}
 
     # --- Average weight series (per-day average) ---
     try:
-        # detect date expr for animal table
-        animal_date_expr = detect_date_expr('animal')
-        if animal_date_expr:
+        # choose date column for animal table as well
+        try:
+            animal_date_col = choose_date_column('animal', 'created_at')
             q = f"""
-                SELECT {animal_date_expr} AS d, COALESCE(AVG(weight), 0) AS val
+                SELECT DATE({animal_date_col}) as d, COALESCE(AVG(weight),0) as val
                 FROM animal
-                WHERE {animal_date_expr} BETWEEN ? AND ?
+                WHERE DATE({animal_date_col}) BETWEEN ? AND ?
                 GROUP BY d
                 ORDER BY d
             """
             cur.execute(q, (start_dt.isoformat(), end_dt.isoformat()))
             rows = cur.fetchall()
             weight_map = {r[0]: (r[1] or 0) for r in rows}
-        else:
+        except Exception:
+            # fallback empty
             weight_map = {}
     except Exception:
         weight_map = {}
@@ -717,6 +708,9 @@ def dashboard():
 
     conn.close()
 
+    # optional debug (remove or comment out in production)
+    # print(f"DASHBOARD DEBUG: total_income={total_income}, total_expense={total_expense}, net_profit={net_profit}")
+
     return render_template('dashboard.html',
                            total_animals=total_animals,
                            total_sales=total_sales,
@@ -735,7 +729,8 @@ def dashboard():
                            end_date=end_dt.isoformat(),
                            total_expense=total_expense,
                            user_role=current_user.role,
-                           username=current_user.username)
+                           username=current_user.username)rate_report route with this conditional registration block ---
+
 # --- BEGIN fixed single safe generate_report implementation (paste into app.py routes area) ---
 import os
 import csv
@@ -3173,5 +3168,4 @@ if __name__ == '__main__':
         print("Error checking DB:", e)
     print("Starting server: http://localhost:5000"); print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
-
 
