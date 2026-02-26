@@ -4,7 +4,7 @@ here = os.path.dirname(__file__)
 if here not in sys.path:
     sys.path.insert(0, here)
 
-VENV = "/home/iqfrizqe/venv_dlfarm"
+VENV = "/home/xjuytzmt/public_html"
 activate = os.path.join(VENV, "bin", "activate_this.py")
 if os.path.exists(activate):
     with open(activate) as f:
