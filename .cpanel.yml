@@ -1,10 +1,70 @@
-deployment:
+# cpanel.yml - deploy script for grubri-farmsystem (updated paths)
+deploy:
+  environment:
+    REPO: "https://github.com/007keithkili/grubri-farmsystem.git"
+    BRANCH: "main"
+    CPANEL_USER: "xjuytzmt"
+    VENV_PATH: "/home/xjuytzmt/venv_grubri"
+    APP_DIR: "/home/xjuytzmt/repositories/grubri-farmsystem"
+    WWWROOT: "/home/xjuytzmt/public_html"
   tasks:
-    - export APP_ROOT=/home/iqfrizqe/public_html
-    - git checkout HEAD -- .
-    - rsync -a --delete ./ ${APP_ROOT}/
-  hooks:
-    postdeploy:
-      - cd /home/iqfrizqe/public_html
-      - mkdir -p tmp
-      - touch tmp/restart.txt
+    - run: echo "Starting cPanel deploy for grubri-farmsystem..."
+    - run: git --version || true
+    - run: python3 -V || true
+
+    # ensure app dir exists (if repo already cloned, this will keep it)
+    - run: mkdir -p ${APP_DIR} || true
+
+    # clone or update the repo (if APP_DIR already a repo this updates it)
+    - run: |
+        if [ -d "${APP_DIR}/.git" ]; then
+          echo "Updating existing repo in ${APP_DIR}..."
+          cd "${APP_DIR}"
+          git fetch --all --prune || true
+          git reset --hard "origin/${BRANCH}" || true
+        else
+          echo "Cloning ${REPO} (branch ${BRANCH}) into ${APP_DIR}..."
+          rm -rf "${APP_DIR}" || true
+          git clone --depth 1 --branch "${BRANCH}" "${REPO}" "${APP_DIR}"
+        fi
+
+    # create virtualenv and install requirements if present
+    - run: |
+        python3 -m venv "${VENV_PATH}" || true
+        "${VENV_PATH}/bin/pip" install --upgrade pip setuptools wheel || true
+        if [ -f "${APP_DIR}/requirements.txt" ]; then
+          echo "Installing requirements from ${APP_DIR}/requirements.txt..."
+          "${VENV_PATH}/bin/pip" install -r "${APP_DIR}/requirements.txt" || true
+        else
+          echo "No requirements.txt found in ${APP_DIR} — skipping pip install."
+        fi
+
+    # sync to public_html (rsync preferred; fallback to cp)
+    - run: echo "Syncing application files to ${WWWROOT} (excluding .git, venv, __pycache__)..."
+    - run: |
+        mkdir -p "${WWWROOT}"
+        if command -v rsync >/dev/null 2>&1 ; then
+          rsync -av --delete --exclude='.git' --exclude='venv' --exclude='__pycache__' "${APP_DIR}/" "${WWWROOT}/"
+        else
+          # fallback - careful: removes files in public_html
+          rm -rf "${WWWROOT}/*" || true
+          cp -R "${APP_DIR}/." "${WWWROOT}/"
+        fi
+
+    # ensure passenger_wsgi.py exists and points to Flask app (adjust if your app entrypoint differs)
+    - run: |
+        cat > "${WWWROOT}/passenger_wsgi.py" <<'PY'
+from app import app
+application = app
+PY
+
+    # restart passenger via touch restart file
+    - run: mkdir -p "${WWWROOT}/tmp" || true
+    - run: touch "${WWWROOT}/tmp/restart.txt" || true
+
+    # fix ownership & basic permissions
+    - run: chown -R ${CPANEL_USER}:${CPANEL_USER} "${WWWROOT}" "${VENV_PATH}" "${APP_DIR}" || true
+    - run: find "${WWWROOT}" -type d -exec chmod 755 {} \; || true
+    - run: find "${WWWROOT}" -type f -exec chmod 644 {} \; || true
+
+    - run: echo "Deploy finished. Visit your site or check logs for errors."
