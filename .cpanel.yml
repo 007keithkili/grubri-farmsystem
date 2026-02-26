@@ -1,3 +1,10 @@
-﻿hooks:
-  postdeploy:
-    - /bin/bash /home/iqfrizqe/.cpanel/hooks/sync-to-root.sh
+deployment:
+  tasks:
+    - export APP_ROOT=/home/iqfrizqe/public_html
+    - git checkout HEAD -- .
+    - rsync -a --delete ./ ${APP_ROOT}/
+  hooks:
+    postdeploy:
+      - cd /home/iqfrizqe/public_html
+      - mkdir -p tmp
+      - touch tmp/restart.txt
