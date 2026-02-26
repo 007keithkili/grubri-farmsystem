@@ -1,8 +1,8 @@
 deployment:
   tasks:
-    - export APP_ROOT=/home/xjuytzmt/public_html
-    - git checkout HEAD -- .
-    - rsync -a --delete ./ ${APP_ROOT}/
+    - export REPO_DIR=/home/xjuytzmt/repositories/grubri-farmsystem/grubri-farmsystem
+    - cd $REPO_DIR
+    - /usr/bin/rsync -av --delete ./ /home/xjuytzmt/public_html/
   hooks:
     postdeploy:
       - cd /home/xjuytzmt/public_html
